@@ -1,9 +1,12 @@
 // TODO: Continue implementing fake event
 
 use async_std::{io, task};
-use futures::prelude::*;
 use futures::future::{self, Ready};
-use libp2p::core::{upgrade::Negotiated, InboundUpgrade, OutboundUpgrade, UpgradeInfo};
+use futures::prelude::*;
+use libp2p::core::{
+    nodes::ListenerId, upgrade::DeniedUpgrade, upgrade::Negotiated, ConnectedPoint, InboundUpgrade,
+    Multiaddr, OutboundUpgrade, UpgradeInfo,
+};
 use libp2p::kad::record::store::MemoryStore;
 use libp2p::kad::{record::Key, Kademlia, KademliaEvent, PutRecordOk, Quorum, Record};
 use libp2p::{
@@ -11,14 +14,26 @@ use libp2p::{
     core::muxing::StreamMuxerBox,
     core::transport::boxed::Boxed,
     core::{self, either::EitherError, either::EitherOutput, transport::Transport, upgrade},
-    dns, identity,
+    dns,
+    identify::{Identify, IdentifyEvent, IdentifyInfo},
+    identity,
     mdns::{Mdns, MdnsEvent},
     mplex, noise,
+    ping::{Ping, PingConfig, PingEvent},
+    swarm::IntoProtocolsHandler,
+    swarm::KeepAlive,
+    swarm::NetworkBehaviourAction,
     swarm::NetworkBehaviourEventProcess,
+    swarm::PollParameters,
+    swarm::ProtocolsHandler,
+    swarm::ProtocolsHandlerEvent,
+    swarm::ProtocolsHandlerUpgrErr,
+    swarm::SubstreamProtocol,
     tcp, websocket, yamux, NetworkBehaviour, PeerId, Swarm,
 };
 use std::{
     error::Error,
+    marker::PhantomData,
     task::{Context, Poll},
     time::Duration,
     usize,
@@ -35,14 +50,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("local peer id: {:?}", local_peer_id);
 
     // Set up a an encrypted DNS-enabled TCP Transport over the Mplex protocol.
-    let transport = build_transport(local_key);
+    let transport = build_transport(local_key.clone());
 
     // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
     struct MyBehaviour<TSubstream: AsyncRead + AsyncWrite> {
         kademlia: Kademlia<TSubstream, MemoryStore>,
         mdns: Mdns<TSubstream>,
-        fake: FakeConfig,
+        fake: FakeConfig<TSubstream>,
+        ping: Ping<TSubstream>,
+        identify: Identify<TSubstream>,
     }
 
     impl<T> NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour<T>
@@ -59,6 +76,33 @@ fn main() -> Result<(), Box<dyn Error>> {
                     self.kademlia.add_address(&peer_id, multiaddr);
                 }
             }
+        }
+    }
+
+    impl<T> NetworkBehaviourEventProcess<FakeEvent> for MyBehaviour<T>
+    where
+        T: AsyncRead + AsyncWrite,
+    {
+        fn inject_event(&mut self, event: FakeEvent) {
+            println!("GOT FAKE EVENT");
+        }
+    }
+
+    impl<T> NetworkBehaviourEventProcess<PingEvent> for MyBehaviour<T>
+    where
+        T: AsyncRead + AsyncWrite,
+    {
+        fn inject_event(&mut self, event: PingEvent) {
+            println!("Got PingEvent");
+        }
+    }
+
+    impl<T> NetworkBehaviourEventProcess<IdentifyEvent> for MyBehaviour<T>
+    where
+        T: AsyncRead + AsyncWrite,
+    {
+        fn inject_event(&mut self, event: IdentifyEvent) {
+            println!("Got IdentifyEvent");
         }
     }
 
@@ -101,8 +145,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         let store = MemoryStore::new(local_peer_id.clone());
         let kademlia = Kademlia::new(local_peer_id.clone(), store);
         let mdns = task::block_on(Mdns::new())?;
-        let fake = FakeConfig{};
-        let behaviour = MyBehaviour { kademlia, mdns, fake };
+        let fake = FakeConfig {
+            marker: PhantomData,
+        };
+        let ping = Ping::new(PingConfig::new().with_keep_alive(true));
+
+        let user_agent = "substrate-node/v2.0.0-e3245d49d-x86_64-linux-gnu (unknown)".to_string();
+        let proto_version = "/substrate/1.0".to_string();
+        let identify = Identify::new(proto_version, user_agent, local_key.public());
+
+        let behaviour = MyBehaviour {
+            kademlia,
+            mdns,
+            fake,
+            ping,
+            identify,
+        };
         Swarm::new(transport, behaviour, local_peer_id)
     };
 
@@ -276,19 +334,22 @@ fn build_transport(keypair: identity::Keypair) -> Boxed<(PeerId, StreamMuxerBox)
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct FakeConfig;
+pub struct FakeConfig<TSubstream> {
+    /// Marker to pin the generic.
+    marker: PhantomData<TSubstream>,
+}
 
-impl UpgradeInfo for FakeConfig {
+impl UpgradeInfo for FakeProtocolConfig {
     type Info = &'static [u8];
-    type InfoIter = std::iter::Once<Self::Info>;
+    type InfoIter = Vec<&'static [u8]>;
 
     fn protocol_info(&self) -> Self::InfoIter {
         println!("protocol info called");
-        std::iter::once(b"/plaintext/1.0.0")
+        vec![b"/substrate/fir/5"]
     }
 }
 
-impl<C> InboundUpgrade<C> for FakeConfig {
+impl<C> InboundUpgrade<C> for FakeProtocolConfig {
     type Output = Negotiated<C>;
     type Error = Void;
     type Future = Ready<Result<Negotiated<C>, Self::Error>>;
@@ -299,7 +360,7 @@ impl<C> InboundUpgrade<C> for FakeConfig {
     }
 }
 
-impl<C> OutboundUpgrade<C> for FakeConfig {
+impl<C> OutboundUpgrade<C> for FakeProtocolConfig {
     type Output = Negotiated<C>;
     type Error = Void;
     type Future = Ready<Result<Negotiated<C>, Self::Error>>;
@@ -310,12 +371,15 @@ impl<C> OutboundUpgrade<C> for FakeConfig {
     }
 }
 
-impl NetworkBehaviour for FakeConfig {
+impl<TSubstream> libp2p::swarm::NetworkBehaviour for FakeConfig<TSubstream>
+where
+    TSubstream: AsyncRead + AsyncWrite + Unpin,
+{
     /// Handler for all the protocols the network behaviour supports.
-    type ProtocolsHandler: FakeHandler;
+    type ProtocolsHandler = FakeHandler<TSubstream>;
 
     /// Event generated by the `NetworkBehaviour` and that the swarm will report back.
-    type OutEvent: FakeEvent;
+    type OutEvent = FakeEvent;
 
     /// Creates a new `ProtocolsHandler` for a connection with a peer.
     ///
@@ -330,7 +394,11 @@ impl NetworkBehaviour for FakeConfig {
     /// Messages sent from the handler to the behaviour are injected with `inject_node_event`, and
     /// the behaviour can send a message to the handler by making `poll` return `SendEvent`.
     fn new_handler(&mut self) -> Self::ProtocolsHandler {
-        FakeHandler{}
+        println!("==== creating new handler");
+        FakeHandler {
+            substreams: vec![],
+            marker: PhantomData,
+        }
     }
 
     /// Addresses that this behaviour is aware of for this specific peer, and that may allow
@@ -339,33 +407,24 @@ impl NetworkBehaviour for FakeConfig {
     /// The addresses will be tried in the order returned by this function, which means that they
     /// should be ordered by decreasing likelihood of reachability. In other words, the first
     /// address should be the most likely to be reachable.
-    fn addresses_of_peer(&mut self, peer_id: &PeerId) -> Vec<Multiaddr>{ vec![]}
+    fn addresses_of_peer(&mut self, peer_id: &PeerId) -> Vec<Multiaddr> {
+        vec![]
+    }
 
     /// Indicates the behaviour that we connected to the node with the given peer id through the
     /// given endpoint.
     ///
     /// This node now has a handler (as spawned by `new_handler`) running in the background.
-    fn inject_connected(&mut self, peer_id: PeerId, endpoint: ConnectedPoint){}
+    fn inject_connected(&mut self, peer_id: PeerId, endpoint: ConnectedPoint) {
+        println!("FakeConfig: inject connected {:?}", peer_id);
+    }
 
     /// Indicates the behaviour that we disconnected from the node with the given peer id. The
     /// endpoint is the one we used to be connected to.
     ///
     /// There is no handler running anymore for this node. Any event that has been sent to it may
     /// or may not have been processed by the handler.
-    fn inject_disconnected(&mut self, peer_id: &PeerId, endpoint: ConnectedPoint){}
-
-    /// Indicates the behaviour that we replace the connection from the node with another.
-    ///
-    /// The handler that used to be dedicated to this node has been destroyed and replaced with a
-    /// new one. Any event that has been sent to it may or may not have been processed.
-    ///
-    /// The default implementation of this method calls `inject_disconnected` followed with
-    /// `inject_connected`. This is a logically safe way to implement this behaviour. However, you
-    /// may want to overwrite this method in the situations where this isn't appropriate.
-    fn inject_replaced(&mut self, peer_id: PeerId, closed_endpoint: ConnectedPoint, new_endpoint: ConnectedPoint) {
-        self.inject_disconnected(&peer_id, closed_endpoint);
-        self.inject_connected(peer_id, new_endpoint);
-    }
+    fn inject_disconnected(&mut self, peer_id: &PeerId, endpoint: ConnectedPoint) {}
 
     /// Informs the behaviour about an event generated by the handler dedicated to the peer identified by `peer_id`.
     /// for the behaviour.
@@ -375,14 +434,20 @@ impl NetworkBehaviour for FakeConfig {
     fn inject_node_event(
         &mut self,
         peer_id: PeerId,
-        event: <<Self::ProtocolsHandler as IntoProtocolsHandler>::Handler as ProtocolsHandler>::OutEvent
-    ){}
+        event: <<Self::ProtocolsHandler as IntoProtocolsHandler>::Handler as ProtocolsHandler>::OutEvent,
+    ) {
+    }
 
     /// Indicates to the behaviour that we tried to reach an address, but failed.
     ///
     /// If we were trying to reach a specific node, its ID is passed as parameter. If this is the
     /// last address to attempt for the given node, then `inject_dial_failure` is called afterwards.
-    fn inject_addr_reach_failure(&mut self, _peer_id: Option<&PeerId>, _addr: &Multiaddr, _error: &dyn error::Error) {
+    fn inject_addr_reach_failure(
+        &mut self,
+        _peer_id: Option<&PeerId>,
+        _addr: &Multiaddr,
+        _error: &dyn Error,
+    ) {
     }
 
     /// Indicates to the behaviour that we tried to dial all the addresses known for a node, but
@@ -390,37 +455,119 @@ impl NetworkBehaviour for FakeConfig {
     ///
     /// The `peer_id` is guaranteed to be in a disconnected state. In other words,
     /// `inject_connected` has not been called, or `inject_disconnected` has been called since then.
-    fn inject_dial_failure(&mut self, _peer_id: &PeerId) {
-    }
+    fn inject_dial_failure(&mut self, _peer_id: &PeerId) {}
 
     /// Indicates to the behaviour that we have started listening on a new multiaddr.
-    fn inject_new_listen_addr(&mut self, _addr: &Multiaddr) {
-    }
+    fn inject_new_listen_addr(&mut self, _addr: &Multiaddr) {}
 
     /// Indicates to the behaviour that a new multiaddr we were listening on has expired,
     /// which means that we are no longer listening in it.
-    fn inject_expired_listen_addr(&mut self, _addr: &Multiaddr) {
-    }
+    fn inject_expired_listen_addr(&mut self, _addr: &Multiaddr) {}
 
     /// Indicates to the behaviour that we have discovered a new external address for us.
-    fn inject_new_external_addr(&mut self, _addr: &Multiaddr) {
-    }
+    fn inject_new_external_addr(&mut self, _addr: &Multiaddr) {}
 
     /// A listener experienced an error.
     fn inject_listener_error(&mut self, _id: ListenerId, _err: &(dyn std::error::Error + 'static)) {
     }
 
     /// A listener closed.
-    fn inject_listener_closed(&mut self, _id: ListenerId) {
-    }
+    fn inject_listener_closed(&mut self, _id: ListenerId) {}
 
     /// Polls for things that swarm should do.
     ///
     /// This API mimics the API of the `Stream` trait. The method may register the current task in
     /// order to wake it up at a later point in time.
     fn poll(&mut self, cx: &mut Context, params: &mut impl PollParameters)
-        -> Poll<NetworkBehaviourAction<<<Self::ProtocolsHandler as IntoProtocolsHandler>::Handler as ProtocolsHandler>::InEvent, Self::OutEvent>>;
+        -> Poll<NetworkBehaviourAction<<<Self::ProtocolsHandler as IntoProtocolsHandler>::Handler as ProtocolsHandler>::InEvent, Self::OutEvent>>
     {
-        Poll::Ready(())
+        println!("poll called");
+        Poll::Pending
     }
 }
+
+pub struct FakeHandler<TSubstream> {
+    substreams: Vec<Negotiated<TSubstream>>,
+    /// Marker to pin the generic.
+    marker: PhantomData<TSubstream>,
+}
+
+impl<TSubstream> ProtocolsHandler for FakeHandler<TSubstream>
+where
+    TSubstream: AsyncRead + AsyncWrite + Unpin,
+{
+    type InEvent = Void;
+    type OutEvent = Void;
+    type Error = Void;
+    type Substream = TSubstream;
+    type InboundProtocol = FakeProtocolConfig;
+    type OutboundProtocol = FakeProtocolConfig;
+    type OutboundOpenInfo = Void;
+
+    #[inline]
+    fn listen_protocol(&self) -> SubstreamProtocol<Self::InboundProtocol> {
+        println!("fake handler: listen protocol");
+        SubstreamProtocol::new(FakeProtocolConfig {})
+    }
+
+    #[inline]
+    fn inject_fully_negotiated_inbound(
+        &mut self,
+        protocol: <Self::InboundProtocol as InboundUpgrade<TSubstream>>::Output,
+    ) {
+        println!("fake handler: inject fully negotiated inbound");
+        self.substreams.push(protocol)
+    }
+
+    #[inline]
+    fn inject_fully_negotiated_outbound(
+        &mut self,
+        protocol: <Self::OutboundProtocol as OutboundUpgrade<TSubstream>>::Output,
+        _: Self::OutboundOpenInfo,
+    ) {
+        println!("fake handler: inject fully negotiated outbound");
+        self.substreams.push(protocol)
+    }
+
+    #[inline]
+    fn inject_event(&mut self, _: Self::InEvent) {
+        println!("fake handler: inject event");
+    }
+
+    #[inline]
+    fn inject_dial_upgrade_error(
+        &mut self,
+        _: Self::OutboundOpenInfo,
+        _: ProtocolsHandlerUpgrErr<
+            <Self::OutboundProtocol as OutboundUpgrade<Self::Substream>>::Error,
+        >,
+    ) {
+        println!("fake handler: inject dial upgrade error");
+    }
+
+    #[inline]
+    fn connection_keep_alive(&self) -> KeepAlive {
+        println!("fake handler: connection keep alive");
+        KeepAlive::Yes
+    }
+
+    #[inline]
+    fn poll(
+        &mut self,
+        _: &mut Context,
+    ) -> Poll<
+        ProtocolsHandlerEvent<
+            Self::OutboundProtocol,
+            Self::OutboundOpenInfo,
+            Self::OutEvent,
+            Self::Error,
+        >,
+    > {
+        println!("fake handler: poll called");
+        Poll::Pending
+    }
+}
+
+pub enum FakeEvent {}
+
+pub struct FakeProtocolConfig {}
