@@ -134,7 +134,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KademliaEvent::PutRecordResult(Err(err)) => {
                     eprintln!("Failed to put record: {:?}", err);
                 }
-                _ => {}
+                e => println!("Kademlia Event: {:?}", e)
             }
         }
     }
@@ -203,6 +203,12 @@ fn handle_input_line<T>(kademlia: &mut Kademlia<T, MemoryStore>, line: String)
 where
     T: AsyncRead + AsyncWrite,
 {
+    for id in kademlia.kbuckets_entries() {
+        println!("Connected to: {:?}", id);
+    }
+
+    kademlia.bootstrap();
+
     let mut args = line.split(" ");
 
     match args.next() {
@@ -344,7 +350,7 @@ impl UpgradeInfo for FakeProtocolConfig {
     type InfoIter = Vec<&'static [u8]>;
 
     fn protocol_info(&self) -> Self::InfoIter {
-        println!("protocol info called");
+        // println!("protocol info called");
         vec![b"/substrate/fir/5"]
     }
 }
@@ -355,7 +361,7 @@ impl<C> InboundUpgrade<C> for FakeProtocolConfig {
     type Future = Ready<Result<Negotiated<C>, Self::Error>>;
 
     fn upgrade_inbound(self, i: Negotiated<C>, _: Self::Info) -> Self::Future {
-        println!("upgrade inbound called");
+        // println!("upgrade inbound called");
         future::ready(Ok(i))
     }
 }
@@ -366,7 +372,7 @@ impl<C> OutboundUpgrade<C> for FakeProtocolConfig {
     type Future = Ready<Result<Negotiated<C>, Self::Error>>;
 
     fn upgrade_outbound(self, i: Negotiated<C>, _: Self::Info) -> Self::Future {
-        println!("upgrade outbound called");
+        // println!("upgrade outbound called");
         future::ready(Ok(i))
     }
 }
@@ -394,7 +400,7 @@ where
     /// Messages sent from the handler to the behaviour are injected with `inject_node_event`, and
     /// the behaviour can send a message to the handler by making `poll` return `SendEvent`.
     fn new_handler(&mut self) -> Self::ProtocolsHandler {
-        println!("==== creating new handler");
+        // println!("==== creating new handler");
         FakeHandler {
             substreams: vec![],
             marker: PhantomData,
@@ -416,7 +422,7 @@ where
     ///
     /// This node now has a handler (as spawned by `new_handler`) running in the background.
     fn inject_connected(&mut self, peer_id: PeerId, endpoint: ConnectedPoint) {
-        println!("FakeConfig: inject connected {:?}", peer_id);
+        // println!("FakeConfig: inject connected {:?}", peer_id);
     }
 
     /// Indicates the behaviour that we disconnected from the node with the given peer id. The
@@ -481,7 +487,7 @@ where
     fn poll(&mut self, cx: &mut Context, params: &mut impl PollParameters)
         -> Poll<NetworkBehaviourAction<<<Self::ProtocolsHandler as IntoProtocolsHandler>::Handler as ProtocolsHandler>::InEvent, Self::OutEvent>>
     {
-        println!("poll called");
+        // println!("poll called");
         Poll::Pending
     }
 }
@@ -506,7 +512,7 @@ where
 
     #[inline]
     fn listen_protocol(&self) -> SubstreamProtocol<Self::InboundProtocol> {
-        println!("fake handler: listen protocol");
+        // println!("fake handler: listen protocol");
         SubstreamProtocol::new(FakeProtocolConfig {})
     }
 
@@ -515,7 +521,7 @@ where
         &mut self,
         protocol: <Self::InboundProtocol as InboundUpgrade<TSubstream>>::Output,
     ) {
-        println!("fake handler: inject fully negotiated inbound");
+        // println!("fake handler: inject fully negotiated inbound");
         self.substreams.push(protocol)
     }
 
@@ -525,13 +531,13 @@ where
         protocol: <Self::OutboundProtocol as OutboundUpgrade<TSubstream>>::Output,
         _: Self::OutboundOpenInfo,
     ) {
-        println!("fake handler: inject fully negotiated outbound");
+        // println!("fake handler: inject fully negotiated outbound");
         self.substreams.push(protocol)
     }
 
     #[inline]
     fn inject_event(&mut self, _: Self::InEvent) {
-        println!("fake handler: inject event");
+        // println!("fake handler: inject event");
     }
 
     #[inline]
@@ -542,12 +548,12 @@ where
             <Self::OutboundProtocol as OutboundUpgrade<Self::Substream>>::Error,
         >,
     ) {
-        println!("fake handler: inject dial upgrade error");
+        // println!("fake handler: inject dial upgrade error");
     }
 
     #[inline]
     fn connection_keep_alive(&self) -> KeepAlive {
-        println!("fake handler: connection keep alive");
+        // println!("fake handler: connection keep alive");
         KeepAlive::Yes
     }
 
@@ -563,7 +569,7 @@ where
             Self::Error,
         >,
     > {
-        println!("fake handler: poll called");
+        // println!("fake handler: poll called");
         Poll::Pending
     }
 }
