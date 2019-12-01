@@ -12,5 +12,7 @@ env_logger = "0.7.1"
 futures = "0.3.1"
 libp2p = { path = "../../libp2p/rust-libp2p" }
 libp2p-kad = { git = "https://github.com/libp2p/rust-libp2p.git", branch = "stable-futures" }
+prometheus = "0.7"
 void = "1.0.2"
+tide = "*"
 

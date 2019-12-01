@@ -1,5 +1,3 @@
-// TODO: Continue implementing fake event
-
 use async_std::{io, task};
 use futures::future::{self};
 use futures::prelude::*;
@@ -22,6 +20,7 @@ use libp2p::{
     swarm::NetworkBehaviourEventProcess,
     tcp, yamux, NetworkBehaviour, PeerId, Swarm,
 };
+use prometheus::{CounterVec, Encoder, Opts, Registry, TextEncoder};
 use std::{
     convert::TryInto,
     error::Error,
@@ -30,12 +29,41 @@ use std::{
     time::Duration,
 };
 
-
 mod fake_substrate_protocol;
 
 use fake_substrate_protocol::{FakeSubstrateConfig, FakeSubstrateEvent};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let event_counter = {
+        let opts = Opts::new("network_behaviour_event", "Libp2p network behaviour events").variable_labels(vec!["behaviour".to_string(), "event".to_string()]);
+        CounterVec::new(opts,&vec!["behaviour", "event"]).unwrap()
+    };
+
+    event_counter.with_label_values(&["kad", "discover"]).inc();
+
+    let outside_registry = Registry::new();
+    outside_registry.register(Box::new(event_counter.clone())).unwrap();
+
+    let thread_registry = outside_registry.clone();
+    let metrics_server = std::thread::spawn(move || {
+        task::block_on( async {
+            let inside_registry = thread_registry;
+            let mut app = tide::with_state(inside_registry);
+            app.at("/metrics").get(|req: tide::Request<prometheus::Registry>| async move {
+
+                let mut buffer = vec![];
+                let encoder = TextEncoder::new();
+                let metric_families = req.state().gather();
+                encoder.encode(&metric_families, &mut buffer).unwrap();
+
+                String::from_utf8(buffer).unwrap()
+            });
+            app.listen("127.0.0.1:8080").await.unwrap();
+            Result::<(), ()>::Ok(())
+        })
+    });
+
+
     let bootnode: Multiaddr = "/dns4/p2p.cc3-5.kusama.network/tcp/30100"
         .try_into()
         .unwrap();
@@ -47,10 +75,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let local_key = Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
 
-    // Set up a an encrypted DNS-enabled TCP Transport over the Mplex protocol.
     let transport = build_transport(local_key.clone());
 
-    // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
     struct MyBehaviour<TSubstream: AsyncRead + AsyncWrite> {
         kademlia: Kademlia<TSubstream, MemoryStore>,
