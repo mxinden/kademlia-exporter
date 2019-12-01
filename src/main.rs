@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     outside_registry.register(Box::new(kad_kbuckets_size.clone())).unwrap();
 
     let thread_registry = outside_registry.clone();
-    let metrics_server = std::thread::spawn(move || {
+    let _metrics_server = std::thread::spawn(move || {
         task::block_on( async {
             let inside_registry = thread_registry;
             let mut app = tide::with_state(inside_registry);
@@ -244,8 +244,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
                 Poll::Pending => {
                     if !listening {
-                        if let Some(a) = Swarm::listeners(&swarm).next() {
-                            println!("Listening on {:?}", a);
+                        for listener in Swarm::listeners(&swarm) {
+                            println!("Swarm listening on {:?}", listener);
                             listening = true;
                         }
                     }
