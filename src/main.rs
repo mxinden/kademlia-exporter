@@ -20,7 +20,7 @@ use libp2p::{
     swarm::NetworkBehaviourEventProcess,
     tcp, yamux, NetworkBehaviour, PeerId, Swarm,
 };
-use prometheus::{CounterVec, Encoder, Opts, Registry, TextEncoder};
+use prometheus::{CounterVec, Encoder, Opts, Registry, TextEncoder, Gauge};
 use std::{
     convert::TryInto,
     error::Error,
@@ -35,14 +35,18 @@ use fake_substrate_protocol::{FakeSubstrateConfig, FakeSubstrateEvent};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let event_counter = {
-        let opts = Opts::new("network_behaviour_event", "Libp2p network behaviour events").variable_labels(vec!["behaviour".to_string(), "event".to_string()]);
+        let opts = Opts::new("network_behaviour_event", "Libp2p network behaviour events.").variable_labels(vec!["behaviour".to_string(), "event".to_string()]);
         CounterVec::new(opts,&vec!["behaviour", "event"]).unwrap()
     };
 
-    event_counter.with_label_values(&["kad", "discover"]).inc();
+    let kad_kbuckets_size = {
+        let opts = Opts::new("kad_kbuckets_size", "Libp2p Kademlia K-Buckets size.");
+        Gauge::with_opts(opts).unwrap()
+    };
 
     let outside_registry = Registry::new();
     outside_registry.register(Box::new(event_counter.clone())).unwrap();
+    outside_registry.register(Box::new(kad_kbuckets_size.clone())).unwrap();
 
     let thread_registry = outside_registry.clone();
     let metrics_server = std::thread::spawn(move || {
@@ -84,6 +88,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         fake: FakeSubstrateConfig<TSubstream>,
         ping: Ping<TSubstream>,
         identify: Identify<TSubstream>,
+
+        #[behaviour(ignore)]
+        event_counter: prometheus::CounterVec,
+        #[behaviour(ignore)]
+        kad_kbuckets_size: prometheus::Gauge,
     }
 
     impl<T> NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour<T>
@@ -92,9 +101,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         // Called when `mdns` produces an event.
         fn inject_event(&mut self, event: MdnsEvent) {
-            if let MdnsEvent::Discovered(list) = event {
-                for (peer_id, multiaddr) in list {
-                    self.kademlia.add_address(&peer_id, multiaddr);
+            match event {
+                MdnsEvent::Discovered(list) => {
+                    self.event_counter.with_label_values(&["mdns", "discovered"]).inc();
+                    for (peer_id, multiaddr) in list {
+                        self.kademlia.add_address(&peer_id, multiaddr);
+                    }
+                },
+                MdnsEvent::Expired(_) => {
+                    self.event_counter.with_label_values(&["mdns", "expired"]).inc();
                 }
             }
         }
@@ -114,7 +129,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         T: AsyncRead + AsyncWrite,
     {
         fn inject_event(&mut self, _event: PingEvent) {
-            println!("Got PingEvent");
+            self.event_counter.with_label_values(&["ping", "ping_event"]).inc();
         }
     }
 
@@ -122,8 +137,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     where
         T: AsyncRead + AsyncWrite,
     {
-        fn inject_event(&mut self, _event: IdentifyEvent) {
-            println!("Got IdentifyEvent");
+        fn inject_event(&mut self, event: IdentifyEvent) {
+            match event {
+                IdentifyEvent::Error{..} => {
+                    self.event_counter.with_label_values(&["identify", "error"]).inc();
+                },
+                IdentifyEvent::Sent{..} => {
+                    self.event_counter.with_label_values(&["identify", "sent"]).inc();
+                },
+                IdentifyEvent::Received{..} => {
+                    self.event_counter.with_label_values(&["identify", "received"]).inc();
+                },
+            }
         }
     }
 
@@ -131,31 +156,45 @@ fn main() -> Result<(), Box<dyn Error>> {
     where
         T: AsyncRead + AsyncWrite,
     {
-        // Called when `kademlia` produces an event.
         fn inject_event(&mut self, message: KademliaEvent) {
             match message {
-                KademliaEvent::GetRecordResult(Ok(result)) => {
-                    for Record { key, value, .. } in result.records {
-                        println!(
-                            "Got record {:?} {:?}",
-                            std::str::from_utf8(key.as_ref()).unwrap(),
-                            std::str::from_utf8(&value).unwrap(),
-                        );
+                KademliaEvent::BootstrapResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "bootstrap"]).inc();
+                },
+                KademliaEvent::GetClosestPeersResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "get_closest_peers"]).inc();
+                },
+                KademliaEvent::GetProvidersResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "get_providers"]).inc();
+                },
+                KademliaEvent::StartProvidingResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "start_providing"]).inc();
+                },
+                KademliaEvent::RepublishProviderResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "republish_provider"]).inc();
+                },
+                KademliaEvent::GetRecordResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "get_record"]).inc();
+                } ,
+                KademliaEvent::PutRecordResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "put_record"]).inc();
+                },
+                KademliaEvent::RepublishRecordResult(_) => {
+                    self.event_counter.with_label_values(&["kad", "republish_record"]).inc();
+                },
+                KademliaEvent::Discovered{..} => {
+                    self.event_counter.with_label_values(&["kad", "discovered"]).inc();
+                },
+                KademliaEvent::RoutingUpdated{ old_peer, .. } => {
+                    // Check if it is a new node, or just an update to a node.
+                    if old_peer.is_none() {
+                        self.kad_kbuckets_size.inc();
                     }
-                }
-                KademliaEvent::GetRecordResult(Err(err)) => {
-                    eprintln!("Failed to get record: {:?}", err);
-                }
-                KademliaEvent::PutRecordResult(Ok(PutRecordOk { key })) => {
-                    println!(
-                        "Successfully put record {:?}",
-                        std::str::from_utf8(key.as_ref()).unwrap()
-                    );
-                }
-                KademliaEvent::PutRecordResult(Err(err)) => {
-                    eprintln!("Failed to put record: {:?}", err);
-                }
-                _e => {} // println!("Kademlia Event: {:?}", e)
+                    self.event_counter.with_label_values(&["kad", "routing_updated"]).inc();
+                },
+                KademliaEvent::UnroutablePeer{..} => {
+                    self.event_counter.with_label_values(&["kad", "unroutable_peer"]).inc();
+                },
             }
         }
     }
@@ -179,12 +218,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             fake,
             ping,
             identify,
+
+            // Prometheus metrics
+            event_counter,
+            kad_kbuckets_size,
         };
         Swarm::new(transport, behaviour, local_peer_id)
     };
-
-    // Read full lines from stdin
-    let mut stdin = io::BufReader::new(io::stdin()).lines();
 
     // Listen on all interfaces and whatever port the OS assigns.
     Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
@@ -198,13 +238,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Kick it off.
     let mut listening = false;
     task::block_on(future::poll_fn(move |cx: &mut Context| {
-        loop {
-            match stdin.try_poll_next_unpin(cx)? {
-                Poll::Ready(Some(line)) => handle_input_line(&mut swarm.kademlia, line),
-                Poll::Ready(None) => panic!("Stdin closed"),
-                Poll::Pending => break,
-            }
-        }
         loop {
             match swarm.poll_next_unpin(cx) {
                 Poll::Ready(Some(event)) => println!("{:?}", event),
@@ -222,62 +255,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Poll::Pending
     }))
-}
-
-fn handle_input_line<T>(kademlia: &mut Kademlia<T, MemoryStore>, line: String)
-where
-    T: AsyncRead + AsyncWrite,
-{
-    for id in kademlia.kbuckets_entries() {
-        println!("Connected to: {:?}", id);
-    }
-
-    let mut args = line.split(" ");
-
-    match args.next() {
-        Some("GET") => {
-            let key = {
-                match args.next() {
-                    Some(key) => Key::new(&key),
-                    None => {
-                        eprintln!("Expected key");
-                        return;
-                    }
-                }
-            };
-            kademlia.get_record(&key, Quorum::One);
-        }
-        Some("PUT") => {
-            let key = {
-                match args.next() {
-                    Some(key) => Key::new(&key),
-                    None => {
-                        eprintln!("Expected key");
-                        return;
-                    }
-                }
-            };
-            let value = {
-                match args.next() {
-                    Some(value) => value.as_bytes().to_vec(),
-                    None => {
-                        eprintln!("Expected value");
-                        return;
-                    }
-                }
-            };
-            let record = Record {
-                key,
-                value,
-                publisher: None,
-                expires: None,
-            };
-            kademlia.put_record(record, Quorum::One);
-        }
-        _ => {
-            eprintln!("expected GET or PUT");
-        }
-    }
 }
 
 fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Error> {
