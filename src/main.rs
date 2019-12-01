@@ -37,10 +37,14 @@ use std::{
     task::{Context, Poll},
     time::Duration,
     usize,
+    convert::TryInto,
+    str::FromStr,
 };
 use void::Void;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let bootnode: Multiaddr = "/dns4/p2p.cc3-5.kusama.network/tcp/30100".try_into().unwrap();
+    let bootnode_peer_id = PeerId::from_str("QmdePe9MiAJT4yHT2tEwmazCsckAZb19uaoSUgRDffPq3G").unwrap();
     env_logger::init();
 
     // Create a random key for ourselves.
@@ -68,11 +72,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         // Called when `mdns` produces an event.
         fn inject_event(&mut self, event: MdnsEvent) {
-            println!("event: {:?}", event);
             if let MdnsEvent::Discovered(list) = event {
-                println!("discovered: {:?}", list.size_hint());
                 for (peer_id, multiaddr) in list {
-                    println!("discovered: '{:?}'", peer_id);
                     self.kademlia.add_address(&peer_id, multiaddr);
                 }
             }
@@ -168,7 +169,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut stdin = io::BufReader::new(io::stdin()).lines();
 
     // Listen on all interfaces and whatever port the OS assigns.
-    Swarm::listen_on(&mut swarm, "/ip4/127.0.0.1/tcp/0".parse()?)?;
+    Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
+
+    swarm.kademlia.add_address(&bootnode_peer_id, bootnode.clone());
+
+    Swarm::dial_addr(&mut swarm, bootnode).unwrap();
+
 
     // Kick it off.
     let mut listening = false;
