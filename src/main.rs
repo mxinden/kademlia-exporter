@@ -1,7 +1,7 @@
 // TODO: Continue implementing fake event
 
 use async_std::{io, task};
-use futures::future::{self, Ready};
+use futures::future::{self};
 use futures::prelude::*;
 use libp2p::{
     core::{
@@ -28,9 +28,8 @@ use std::{
     str::FromStr,
     task::{Context, Poll},
     time::Duration,
-    usize,
 };
-use void::Void;
+
 
 mod fake_substrate_protocol;
 
@@ -79,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     where
         T: AsyncRead + AsyncWrite,
     {
-        fn inject_event(&mut self, event: FakeSubstrateEvent) {
+        fn inject_event(&mut self, _event: FakeSubstrateEvent) {
             println!("GOT FAKE EVENT");
         }
     }
@@ -88,7 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     where
         T: AsyncRead + AsyncWrite,
     {
-        fn inject_event(&mut self, event: PingEvent) {
+        fn inject_event(&mut self, _event: PingEvent) {
             println!("Got PingEvent");
         }
     }
@@ -97,7 +96,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     where
         T: AsyncRead + AsyncWrite,
     {
-        fn inject_event(&mut self, event: IdentifyEvent) {
+        fn inject_event(&mut self, _event: IdentifyEvent) {
             println!("Got IdentifyEvent");
         }
     }
@@ -130,7 +129,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KademliaEvent::PutRecordResult(Err(err)) => {
                     eprintln!("Failed to put record: {:?}", err);
                 }
-                e => {} // println!("Kademlia Event: {:?}", e)
+                _e => {} // println!("Kademlia Event: {:?}", e)
             }
         }
     }
