@@ -29,10 +29,6 @@ use std::{
     time::Duration,
 };
 
-mod fake_substrate_protocol;
-
-use fake_substrate_protocol::{FakeSubstrateConfig, FakeSubstrateEvent};
-
 fn main() -> Result<(), Box<dyn Error>> {
     let event_counter = {
         let opts = Opts::new("network_behaviour_event", "Libp2p network behaviour events.").variable_labels(vec!["behaviour".to_string(), "event".to_string()]);
@@ -73,6 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap();
     let bootnode_peer_id =
         PeerId::from_str("QmdePe9MiAJT4yHT2tEwmazCsckAZb19uaoSUgRDffPq3G").unwrap();
+
     env_logger::init();
 
     // Create a random key for ourselves.
@@ -82,12 +79,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let transport = build_transport(local_key.clone());
 
     #[derive(NetworkBehaviour)]
-    struct MyBehaviour<TSubstream: AsyncRead + AsyncWrite> {
-        kademlia: Kademlia<TSubstream, MemoryStore>,
-        mdns: Mdns<TSubstream>,
-        fake: FakeSubstrateConfig<TSubstream>,
-        ping: Ping<TSubstream>,
-        identify: Identify<TSubstream>,
+    struct MyBehaviour {
+        kademlia: Kademlia<MemoryStore>,
+        mdns: Mdns,
+        ping: Ping,
+        identify: Identify,
 
         #[behaviour(ignore)]
         event_counter: prometheus::CounterVec,
@@ -95,9 +91,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         kad_kbuckets_size: prometheus::Gauge,
     }
 
-    impl<T> NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour<T>
-    where
-        T: AsyncRead + AsyncWrite,
+    impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour
     {
         // Called when `mdns` produces an event.
         fn inject_event(&mut self, event: MdnsEvent) {
@@ -115,27 +109,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    impl<T> NetworkBehaviourEventProcess<FakeSubstrateEvent> for MyBehaviour<T>
-    where
-        T: AsyncRead + AsyncWrite,
-    {
-        fn inject_event(&mut self, _event: FakeSubstrateEvent) {
-            println!("GOT FAKE EVENT");
-        }
-    }
-
-    impl<T> NetworkBehaviourEventProcess<PingEvent> for MyBehaviour<T>
-    where
-        T: AsyncRead + AsyncWrite,
+    impl NetworkBehaviourEventProcess<PingEvent> for MyBehaviour
     {
         fn inject_event(&mut self, _event: PingEvent) {
             self.event_counter.with_label_values(&["ping", "ping_event"]).inc();
         }
     }
 
-    impl<T> NetworkBehaviourEventProcess<IdentifyEvent> for MyBehaviour<T>
-    where
-        T: AsyncRead + AsyncWrite,
+    impl NetworkBehaviourEventProcess<IdentifyEvent> for MyBehaviour
     {
         fn inject_event(&mut self, event: IdentifyEvent) {
             match event {
@@ -152,9 +133,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    impl<T> NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour<T>
-    where
-        T: AsyncRead + AsyncWrite,
+    impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour
     {
         fn inject_event(&mut self, message: KademliaEvent) {
             match message {
@@ -204,8 +183,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Create a Kademlia behaviour.
         let store = MemoryStore::new(local_peer_id.clone());
         let kademlia = Kademlia::new(local_peer_id.clone(), store);
-        let mdns = task::block_on(Mdns::new())?;
-        let fake = FakeSubstrateConfig::new();
+        let mdns = Mdns::new()?;
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));
 
         let user_agent = "substrate-node/v2.0.0-e3245d49d-x86_64-linux-gnu (unknown)".to_string();
@@ -215,7 +193,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         let behaviour = MyBehaviour {
             kademlia,
             mdns,
-            fake,
             ping,
             identify,
 
