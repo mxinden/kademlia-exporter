@@ -1,26 +1,21 @@
-use async_std::{io, task};
+use async_std::task;
 use futures::future::{self};
 use futures::prelude::*;
 use libp2p::{
     core::{
-        self, muxing::StreamMuxerBox, nodes::ListenerId, transport::boxed::Boxed,
-        transport::Transport, upgrade::Negotiated, ConnectedPoint, InboundUpgrade, Multiaddr,
-        OutboundUpgrade, UpgradeInfo,
+        self, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, Multiaddr,
     },
     dns,
     identify::{Identify, IdentifyEvent},
     identity::Keypair,
-    kad::{
-        record::{store::MemoryStore, Key},
-        Kademlia, KademliaEvent, PutRecordOk, Quorum, Record,
-    },
+    kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
     mdns::{Mdns, MdnsEvent},
     noise,
     ping::{Ping, PingConfig, PingEvent},
     swarm::NetworkBehaviourEventProcess,
     tcp, yamux, NetworkBehaviour, PeerId, Swarm,
 };
-use prometheus::{CounterVec, Encoder, Opts, Registry, TextEncoder, Gauge};
+use prometheus::{CounterVec, Encoder, Gauge, Opts, Registry, TextEncoder};
 use std::{
     convert::TryInto,
     error::Error,
@@ -31,8 +26,12 @@ use std::{
 
 fn main() -> Result<(), Box<dyn Error>> {
     let event_counter = {
-        let opts = Opts::new("network_behaviour_event", "Libp2p network behaviour events.").variable_labels(vec!["behaviour".to_string(), "event".to_string()]);
-        CounterVec::new(opts,&vec!["behaviour", "event"]).unwrap()
+        let opts = Opts::new(
+            "network_behaviour_event",
+            "Libp2p network behaviour events.",
+        )
+        .variable_labels(vec!["behaviour".to_string(), "event".to_string()]);
+        CounterVec::new(opts, &["behaviour", "event"]).unwrap()
     };
 
     let kad_kbuckets_size = {
@@ -41,28 +40,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let outside_registry = Registry::new();
-    outside_registry.register(Box::new(event_counter.clone())).unwrap();
-    outside_registry.register(Box::new(kad_kbuckets_size.clone())).unwrap();
+    outside_registry
+        .register(Box::new(event_counter.clone()))
+        .unwrap();
+    outside_registry
+        .register(Box::new(kad_kbuckets_size.clone()))
+        .unwrap();
 
-    let thread_registry = outside_registry.clone();
+    let thread_registry = outside_registry;
     let _metrics_server = std::thread::spawn(move || {
-        task::block_on( async {
+        task::block_on(async {
             let inside_registry = thread_registry;
             let mut app = tide::with_state(inside_registry);
-            app.at("/metrics").get(|req: tide::Request<prometheus::Registry>| async move {
+            app.at("/metrics")
+                .get(|req: tide::Request<prometheus::Registry>| async move {
+                    let mut buffer = vec![];
+                    let encoder = TextEncoder::new();
+                    let metric_families = req.state().gather();
+                    encoder.encode(&metric_families, &mut buffer).unwrap();
 
-                let mut buffer = vec![];
-                let encoder = TextEncoder::new();
-                let metric_families = req.state().gather();
-                encoder.encode(&metric_families, &mut buffer).unwrap();
-
-                String::from_utf8(buffer).unwrap()
-            });
+                    String::from_utf8(buffer).unwrap()
+                });
             app.listen("127.0.0.1:8080").await.unwrap();
             Result::<(), ()>::Ok(())
         })
     });
-
 
     let bootnode: Multiaddr = "/dns4/p2p.cc3-5.kusama.network/tcp/30100"
         .try_into()
@@ -91,89 +93,119 @@ fn main() -> Result<(), Box<dyn Error>> {
         kad_kbuckets_size: prometheus::Gauge,
     }
 
-    impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour
-    {
+    impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour {
         // Called when `mdns` produces an event.
         fn inject_event(&mut self, event: MdnsEvent) {
             match event {
                 MdnsEvent::Discovered(list) => {
-                    self.event_counter.with_label_values(&["mdns", "discovered"]).inc();
+                    self.event_counter
+                        .with_label_values(&["mdns", "discovered"])
+                        .inc();
                     for (peer_id, multiaddr) in list {
                         self.kademlia.add_address(&peer_id, multiaddr);
                     }
-                },
+                }
                 MdnsEvent::Expired(_) => {
-                    self.event_counter.with_label_values(&["mdns", "expired"]).inc();
+                    self.event_counter
+                        .with_label_values(&["mdns", "expired"])
+                        .inc();
                 }
             }
         }
     }
 
-    impl NetworkBehaviourEventProcess<PingEvent> for MyBehaviour
-    {
+    impl NetworkBehaviourEventProcess<PingEvent> for MyBehaviour {
         fn inject_event(&mut self, _event: PingEvent) {
-            self.event_counter.with_label_values(&["ping", "ping_event"]).inc();
+            self.event_counter
+                .with_label_values(&["ping", "ping_event"])
+                .inc();
         }
     }
 
-    impl NetworkBehaviourEventProcess<IdentifyEvent> for MyBehaviour
-    {
+    impl NetworkBehaviourEventProcess<IdentifyEvent> for MyBehaviour {
         fn inject_event(&mut self, event: IdentifyEvent) {
             match event {
-                IdentifyEvent::Error{..} => {
-                    self.event_counter.with_label_values(&["identify", "error"]).inc();
-                },
-                IdentifyEvent::Sent{..} => {
-                    self.event_counter.with_label_values(&["identify", "sent"]).inc();
-                },
-                IdentifyEvent::Received{..} => {
-                    self.event_counter.with_label_values(&["identify", "received"]).inc();
-                },
+                IdentifyEvent::Error { .. } => {
+                    self.event_counter
+                        .with_label_values(&["identify", "error"])
+                        .inc();
+                }
+                IdentifyEvent::Sent { .. } => {
+                    self.event_counter
+                        .with_label_values(&["identify", "sent"])
+                        .inc();
+                }
+                IdentifyEvent::Received { .. } => {
+                    self.event_counter
+                        .with_label_values(&["identify", "received"])
+                        .inc();
+                }
             }
         }
     }
 
-    impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour
-    {
+    impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour {
         fn inject_event(&mut self, message: KademliaEvent) {
             match message {
                 KademliaEvent::BootstrapResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "bootstrap"]).inc();
-                },
+                    self.event_counter
+                        .with_label_values(&["kad", "bootstrap"])
+                        .inc();
+                }
                 KademliaEvent::GetClosestPeersResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "get_closest_peers"]).inc();
-                },
+                    self.event_counter
+                        .with_label_values(&["kad", "get_closest_peers"])
+                        .inc();
+                }
                 KademliaEvent::GetProvidersResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "get_providers"]).inc();
-                },
+                    self.event_counter
+                        .with_label_values(&["kad", "get_providers"])
+                        .inc();
+                }
                 KademliaEvent::StartProvidingResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "start_providing"]).inc();
-                },
+                    self.event_counter
+                        .with_label_values(&["kad", "start_providing"])
+                        .inc();
+                }
                 KademliaEvent::RepublishProviderResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "republish_provider"]).inc();
-                },
+                    self.event_counter
+                        .with_label_values(&["kad", "republish_provider"])
+                        .inc();
+                }
                 KademliaEvent::GetRecordResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "get_record"]).inc();
-                } ,
+                    self.event_counter
+                        .with_label_values(&["kad", "get_record"])
+                        .inc();
+                }
                 KademliaEvent::PutRecordResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "put_record"]).inc();
-                },
+                    self.event_counter
+                        .with_label_values(&["kad", "put_record"])
+                        .inc();
+                }
                 KademliaEvent::RepublishRecordResult(_) => {
-                    self.event_counter.with_label_values(&["kad", "republish_record"]).inc();
-                },
-                KademliaEvent::Discovered{..} => {
-                    self.event_counter.with_label_values(&["kad", "discovered"]).inc();
-                },
-                KademliaEvent::RoutingUpdated{ old_peer, .. } => {
+                    self.event_counter
+                        .with_label_values(&["kad", "republish_record"])
+                        .inc();
+                }
+                KademliaEvent::Discovered { .. } => {
+                    self.event_counter
+                        .with_label_values(&["kad", "discovered"])
+                        .inc();
+                }
+                KademliaEvent::RoutingUpdated { old_peer, .. } => {
                     // Check if it is a new node, or just an update to a node.
                     if old_peer.is_none() {
                         self.kad_kbuckets_size.inc();
                     }
-                    self.event_counter.with_label_values(&["kad", "routing_updated"]).inc();
-                },
-                KademliaEvent::UnroutablePeer{..} => {
-                    self.event_counter.with_label_values(&["kad", "unroutable_peer"]).inc();
-                },
+                    self.event_counter
+                        .with_label_values(&["kad", "routing_updated"])
+                        .inc();
+                }
+                KademliaEvent::UnroutablePeer { .. } => {
+                    self.event_counter
+                        .with_label_values(&["kad", "unroutable_peer"])
+                        .inc();
+                }
             }
         }
     }
@@ -206,9 +238,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Listen on all interfaces and whatever port the OS assigns.
     Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-    swarm
-        .kademlia
-        .add_address(&bootnode_peer_id, bootnode.clone());
+    swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
 
     swarm.kademlia.bootstrap();
 
