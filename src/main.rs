@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     String::from_utf8(buffer).unwrap()
                 });
-            app.listen("127.0.0.1:8080").await.unwrap();
+            app.listen("0.0.0.0:8080").await.unwrap();
             Result::<(), ()>::Ok(())
         })
     });
