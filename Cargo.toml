@@ -14,5 +14,5 @@ libp2p = "0.16.2"
 libp2p-kad = "0.16.2"
 prometheus = "0.7"
 void = "1.0.2"
-tide = "*"
+tide = "0.6"
 
