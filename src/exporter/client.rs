@@ -62,21 +62,19 @@ impl Client {
 impl Stream for Client {
     type Item = Event;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        loop {
-            match self.swarm.poll_next_unpin(cx) {
-                Poll::Ready(Some(event)) => return Poll::Ready(Some(event)),
-                Poll::Ready(None) => return Poll::Ready(None),
-                Poll::Pending => {
-                    if !self.listening {
-                        for listener in Swarm::listeners(&self.swarm) {
-                            println!("Swarm listening on {:?}", listener);
-                        }
-                        self.listening = true;
+        match self.swarm.poll_next_unpin(cx) {
+            Poll::Ready(Some(event)) => return Poll::Ready(Some(event)),
+            Poll::Ready(None) => return Poll::Ready(None),
+            Poll::Pending => {
+                if !self.listening {
+                    for listener in Swarm::listeners(&self.swarm) {
+                        println!("Swarm listening on {:?}", listener);
                     }
-                    break;
+                    self.listening = true;
                 }
             }
         }
+
         Poll::Pending
     }
 }
@@ -94,9 +92,9 @@ pub(crate) struct MyBehaviour {
 }
 
 pub enum Event {
-    Mdns(MdnsEvent),
+    Mdns(Box<MdnsEvent>),
     Ping(PingEvent),
-    Identify(IdentifyEvent),
+    Identify(Box<IdentifyEvent>),
     Kademlia(KademliaEvent),
 }
 
@@ -105,7 +103,7 @@ impl MyBehaviour {
         let local_peer_id = PeerId::from(local_key.public());
         // Create a Kademlia behaviour.
         let store = MemoryStore::new(local_peer_id.clone());
-        let kademlia = Kademlia::new(local_peer_id.clone(), store);
+        let kademlia = Kademlia::new(local_peer_id, store);
         let mdns = Mdns::new()?;
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));
 
@@ -145,7 +143,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour {
                 self.kademlia.add_address(&peer_id, multiaddr);
             }
         }
-        self.event_buffer.push(Event::Mdns(event));
+        self.event_buffer.push(Event::Mdns(Box::new(event)));
     }
 }
 
@@ -157,7 +155,7 @@ impl NetworkBehaviourEventProcess<PingEvent> for MyBehaviour {
 
 impl NetworkBehaviourEventProcess<IdentifyEvent> for MyBehaviour {
     fn inject_event(&mut self, event: IdentifyEvent) {
-        self.event_buffer.push(Event::Identify(event));
+        self.event_buffer.push(Event::Identify(Box::new(event)));
     }
 }
 

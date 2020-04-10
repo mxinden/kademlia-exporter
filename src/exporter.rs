@@ -26,7 +26,7 @@ impl Exporter {
 
     fn record_event(&self, event: client::Event) {
         match event {
-            client::Event::Mdns(event) => match event {
+            client::Event::Mdns(event) => match *event {
                 MdnsEvent::Discovered(_) => {
                     self.metrics
                         .event_counter
@@ -46,7 +46,7 @@ impl Exporter {
                     .with_label_values(&["ping", "ping_event"])
                     .inc();
             }
-            client::Event::Identify(event) => match event {
+            client::Event::Identify(event) => match *event {
                 IdentifyEvent::Error { .. } => {
                     self.metrics
                         .event_counter

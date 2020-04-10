@@ -12,10 +12,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let signal = Arc::new(Mutex::new(Some(signal)));
 
     ctrlc::set_handler(move || {
-        println!("Got ctrlc");
-        match signal.lock().unwrap().take() {
-            Some(signal) => signal.fire().unwrap(),
-            None => {}
+        if let Some(signal) = signal.lock().unwrap().take() {
+            signal.fire().unwrap();
         }
     })
     .unwrap();
