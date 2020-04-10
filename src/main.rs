@@ -2,7 +2,6 @@ use async_std::task;
 use prometheus::{Encoder, Registry, TextEncoder};
 use std::{error::Error, sync::{Arc, Mutex}};
 
-mod behaviour;
 mod exporter;
 
 fn main() -> Result<(), Box<dyn Error>> {
