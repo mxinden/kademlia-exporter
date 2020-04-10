@@ -1,20 +1,18 @@
+use futures::prelude::*;
 use libp2p::{
-    identify::{Identify, IdentifyEvent},
-    kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
-    mdns::{Mdns, MdnsEvent},
-    swarm::{NetworkBehaviourEventProcess, NetworkBehaviourAction, PollParameters},
-    NetworkBehaviour,
-    identity::Keypair,
-    dns,
-    ping::{Ping, PingEvent, PingConfig},
-
     core::{
         self, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, Multiaddr,
     },
+    dns,
+    identify::{Identify, IdentifyEvent},
+    identity::Keypair,
+    kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
+    mdns::{Mdns, MdnsEvent},
     noise,
-    tcp, yamux, PeerId, Swarm,
+    ping::{Ping, PingConfig, PingEvent},
+    swarm::{NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters},
+    tcp, yamux, NetworkBehaviour, PeerId, Swarm,
 };
-use futures::prelude::*;
 use std::{
     convert::TryInto,
     error::Error,
@@ -31,7 +29,6 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> Result<Client, Box<dyn Error>> {
-
         env_logger::init();
 
         // Create a random key for ourselves.
@@ -112,8 +109,7 @@ impl MyBehaviour {
         let mdns = Mdns::new()?;
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));
 
-        let user_agent =
-            "substrate-node/v2.0.0-e3245d49d-x86_64-linux-gnu (unknown)".to_string();
+        let user_agent = "substrate-node/v2.0.0-e3245d49d-x86_64-linux-gnu (unknown)".to_string();
         let proto_version = "/substrate/1.0".to_string();
         let identify = Identify::new(proto_version, user_agent, local_key.public());
 
@@ -126,13 +122,19 @@ impl MyBehaviour {
             event_buffer: Vec::new(),
         })
     }
-	  fn poll<TEv>(&mut self, _: &mut Context, _: &mut impl PollParameters) -> Poll<NetworkBehaviourAction<TEv, Event>> {
-		    if !self.event_buffer.is_empty() {
-			      return Poll::Ready(NetworkBehaviourAction::GenerateEvent(self.event_buffer.remove(0)))
-		    }
+    fn poll<TEv>(
+        &mut self,
+        _: &mut Context,
+        _: &mut impl PollParameters,
+    ) -> Poll<NetworkBehaviourAction<TEv, Event>> {
+        if !self.event_buffer.is_empty() {
+            return Poll::Ready(NetworkBehaviourAction::GenerateEvent(
+                self.event_buffer.remove(0),
+            ));
+        }
 
-		    Poll::Pending
-	  }
+        Poll::Pending
+    }
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour {

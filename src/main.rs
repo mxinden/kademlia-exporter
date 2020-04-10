@@ -1,6 +1,9 @@
 use async_std::task;
 use prometheus::{Encoder, Registry, TextEncoder};
-use std::{error::Error, sync::{Arc, Mutex}};
+use std::{
+    error::Error,
+    sync::{Arc, Mutex},
+};
 
 mod exporter;
 
@@ -14,7 +17,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             Some(signal) => signal.fire().unwrap(),
             None => {}
         }
-    }).unwrap();
+    })
+    .unwrap();
 
     let registry = Registry::new();
     let exporter = exporter::Exporter::new(&registry)?;
