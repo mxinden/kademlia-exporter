@@ -7,7 +7,6 @@ use libp2p::{
     identify::{Identify, IdentifyEvent},
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
-    mdns::{Mdns, MdnsEvent},
     noise,
     ping::{Ping, PingConfig, PingEvent},
     swarm::{NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters},
@@ -83,7 +82,6 @@ impl Stream for Client {
 #[behaviour(out_event = "Event", poll_method = "poll")]
 pub(crate) struct MyBehaviour {
     pub(crate) kademlia: Kademlia<MemoryStore>,
-    pub(crate) mdns: Mdns,
     pub(crate) ping: Ping,
     pub(crate) identify: Identify,
 
@@ -92,7 +90,6 @@ pub(crate) struct MyBehaviour {
 }
 
 pub enum Event {
-    Mdns(Box<MdnsEvent>),
     Ping(PingEvent),
     Identify(Box<IdentifyEvent>),
     Kademlia(KademliaEvent),
@@ -104,7 +101,6 @@ impl MyBehaviour {
         // Create a Kademlia behaviour.
         let store = MemoryStore::new(local_peer_id.clone());
         let kademlia = Kademlia::new(local_peer_id, store);
-        let mdns = Mdns::new()?;
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));
 
         let user_agent = "substrate-node/v2.0.0-e3245d49d-x86_64-linux-gnu (unknown)".to_string();
@@ -113,7 +109,6 @@ impl MyBehaviour {
 
         Ok(MyBehaviour {
             kademlia,
-            mdns,
             ping,
             identify,
 
@@ -132,18 +127,6 @@ impl MyBehaviour {
         }
 
         Poll::Pending
-    }
-}
-
-impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour {
-    // Called when `mdns` produces an event.
-    fn inject_event(&mut self, mut event: MdnsEvent) {
-        if let MdnsEvent::Discovered(list) = &mut event {
-            for (peer_id, multiaddr) in list {
-                self.kademlia.add_address(&peer_id, multiaddr);
-            }
-        }
-        self.event_buffer.push(Event::Mdns(Box::new(event)));
     }
 }
 

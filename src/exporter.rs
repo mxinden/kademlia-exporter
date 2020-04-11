@@ -1,6 +1,6 @@
 use client::Client;
 use futures::{prelude::*, ready};
-use libp2p::{identify::IdentifyEvent, kad::KademliaEvent, mdns::MdnsEvent};
+use libp2p::{identify::IdentifyEvent, kad::KademliaEvent};
 use prometheus::{CounterVec, Gauge, Opts, Registry};
 use std::{
     error::Error,
@@ -26,20 +26,6 @@ impl Exporter {
 
     fn record_event(&self, event: client::Event) {
         match event {
-            client::Event::Mdns(event) => match *event {
-                MdnsEvent::Discovered(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&["mdns", "discovered"])
-                        .inc();
-                }
-                MdnsEvent::Expired(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&["mdns", "expired"])
-                        .inc();
-                }
-            },
             client::Event::Ping(_) => {
                 self.metrics
                     .event_counter
