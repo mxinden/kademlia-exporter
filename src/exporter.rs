@@ -1,5 +1,5 @@
 use client::Client;
-use futures::{prelude::*};
+use futures::prelude::*;
 use libp2p::{core::Multiaddr, identify::IdentifyEvent, kad::KademliaEvent};
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 use std::{
@@ -19,14 +19,17 @@ impl Exporter {
     pub(crate) fn new(dhts: Vec<Multiaddr>, registry: &Registry) -> Result<Self, Box<dyn Error>> {
         let metrics = Metrics::register(registry);
 
-        let clients = dhts.into_iter().map(|addr| {
-            (addr.iter().next().unwrap().to_string(), client::Client::new(addr).unwrap())
-        }).collect();
+        let clients = dhts
+            .into_iter()
+            .map(|addr| {
+                (
+                    addr.iter().next().unwrap().to_string(),
+                    client::Client::new(addr).unwrap(),
+                )
+            })
+            .collect();
 
-        Ok(Exporter {
-            clients,
-            metrics,
-        })
+        Ok(Exporter { clients, metrics })
     }
 
     fn record_event(&self, name: String, event: client::Event) {
@@ -58,7 +61,7 @@ impl Exporter {
                 }
             },
             client::Event::Kademlia(event) => {
-                match event {
+                match *event {
                     KademliaEvent::BootstrapResult(_) => {
                         self.metrics
                             .event_counter
@@ -175,10 +178,10 @@ impl Metrics {
         .unwrap();
         registry.register(Box::new(event_counter.clone())).unwrap();
 
-        let bucket_size = GaugeVec::new(Opts::new(
-            "kad_kbuckets_size",
-            "Libp2p Kademlia K-Buckets size.",
-        ), &["dht"])
+        let bucket_size = GaugeVec::new(
+            Opts::new("kad_kbuckets_size", "Libp2p Kademlia K-Buckets size."),
+            &["dht"],
+        )
         .unwrap();
         registry.register(Box::new(bucket_size.clone())).unwrap();
         Metrics {

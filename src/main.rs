@@ -10,7 +10,10 @@ use structopt::StructOpt;
 mod exporter;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "Kademlia exporter", about = "Monitor the state of a Kademlia Dht.")]
+#[structopt(
+    name = "Kademlia exporter",
+    about = "Monitor the state of a Kademlia Dht."
+)]
 struct Opt {
     #[structopt(long)]
     dht: Vec<Multiaddr>,
