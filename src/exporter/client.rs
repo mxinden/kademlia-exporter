@@ -1,22 +1,29 @@
 use futures::prelude::*;
 use libp2p::{
     core::{
-        self, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, Multiaddr,
+        self, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, Multiaddr, multiaddr::Protocol,
+        either::EitherError, either::EitherOutput, upgrade,
     },
     dns,
+    mplex,
     identify::{Identify, IdentifyEvent},
     identity::Keypair,
-    kad::{record::store::MemoryStore, Kademlia, KademliaEvent},
+    kad::{record::store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent, protocol::KademliaProtocolConfig},
     noise,
     ping::{Ping, PingConfig, PingEvent},
     swarm::{NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters},
     tcp, yamux, NetworkBehaviour, PeerId, Swarm,
+    secio,
+    InboundUpgradeExt,
+    OutboundUpgradeExt,
 };
 use std::{
+    io,
+    usize,
+    str::FromStr,
     convert::TryInto,
     error::Error,
     pin::Pin,
-    str::FromStr,
     task::{Context, Poll},
     time::Duration,
 };
@@ -27,12 +34,12 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new() -> Result<Client, Box<dyn Error>> {
-        env_logger::init();
-
+    pub fn new(mut bootnode: Multiaddr) -> Result<Client, Box<dyn Error>> {
         // Create a random key for ourselves.
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
+
+        &local_peer_id;
 
         let behaviour = MyBehaviour::new(local_key.clone())?;
         let transport = build_transport(local_key);
@@ -41,12 +48,15 @@ impl Client {
         // Listen on all interfaces and whatever port the OS assigns.
         Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-        // Bootstrapping.
-        let bootnode: Multiaddr = "/dns4/p2p.cc3-5.kusama.network/tcp/30100"
-            .try_into()
-            .unwrap();
-        let bootnode_peer_id =
-            PeerId::from_str("QmdePe9MiAJT4yHT2tEwmazCsckAZb19uaoSUgRDffPq3G").unwrap();
+
+        let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
+            PeerId::from_multihash(hash).unwrap()
+        } else {
+            panic!("expected peer id");
+        };
+
+
+
         swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
         swarm.kademlia.bootstrap();
 
@@ -89,6 +99,7 @@ pub(crate) struct MyBehaviour {
     event_buffer: Vec<Event>,
 }
 
+#[derive(Debug)]
 pub enum Event {
     Ping(PingEvent),
     Identify(Box<IdentifyEvent>),
@@ -98,9 +109,19 @@ pub enum Event {
 impl MyBehaviour {
     fn new(local_key: Keypair) -> Result<Self, Box<dyn Error>> {
         let local_peer_id = PeerId::from(local_key.public());
+
         // Create a Kademlia behaviour.
         let store = MemoryStore::new(local_peer_id.clone());
-        let kademlia = Kademlia::new(local_peer_id, store);
+        let mut kademlia_config = KademliaConfig::default();
+        // TODO: Seems like rust and golang use diffferent max packet sizes
+        // https://github.com/libp2p/go-libp2p-core/blob/master/network/network.go#L23
+        // https://github.com/libp2p/rust-libp2p/blob/master/protocols/kad/src/protocol.rs#L170
+        // This results in `[2020-04-11T22:45:24Z DEBUG libp2p_kad::behaviour]
+        // Request to PeerId("") in query QueryId(0) failed with Io(Custom {
+        // kind: PermissionDenied, error: "len > max" })`
+        kademlia_config.set_max_packet_size(8000);
+        let kademlia = Kademlia::with_config(local_peer_id, store, kademlia_config);
+
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));
 
         let user_agent = "substrate-node/v2.0.0-e3245d49d-x86_64-linux-gnu (unknown)".to_string();
@@ -153,12 +174,46 @@ fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Err
     let transport = dns::DnsConfig::new(tcp).unwrap();
 
     let noise_keypair = noise::Keypair::new().into_authentic(&keypair).unwrap();
+    let noise_config = noise::NoiseConfig::ix(noise_keypair);
+ 	  let secio_config = secio::SecioConfig::new(keypair).max_frame_len(1024 * 1024);
+
+    let transport = transport.and_then(move |stream, endpoint| {
+		    let upgrade = core::upgrade::SelectUpgrade::new(noise_config, secio_config);
+		    core::upgrade::apply(stream, upgrade, endpoint, upgrade::Version::V1)
+			      .map(|out| match out? {
+				        // We negotiated noise
+				        EitherOutput::First((remote_id, out)) => {
+					          let remote_key = match remote_id {
+						            noise::RemoteIdentity::IdentityKey(key) => key,
+						            _ => return Err(upgrade::UpgradeError::Apply(EitherError::A(noise::NoiseError::InvalidKey)))
+					          };
+					          Ok((EitherOutput::First(out), remote_key.into_peer_id()))
+				        }
+				        // We negotiated secio
+				        EitherOutput::Second((remote_id, out)) =>
+					          Ok((EitherOutput::Second(out), remote_id))
+			      })
+	  });
+
+	  let mut mplex_config = mplex::MplexConfig::new();
+	  mplex_config.max_buffer_len_behaviour(mplex::MaxBufferBehaviour::Block);
+	  mplex_config.max_buffer_len(usize::MAX);
+	  let yamux_config = yamux::Config::default();
+
+	  // Multiplexing
+	  let transport = transport.and_then(move |(stream, peer_id), endpoint| {
+			  let peer_id2 = peer_id.clone();
+			  let upgrade = core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
+				    .map_inbound(move |muxer| (peer_id, muxer))
+				    .map_outbound(move |muxer| (peer_id2, muxer));
+
+			  core::upgrade::apply(stream, upgrade, endpoint, upgrade::Version::V1)
+				    .map_ok(|(id, muxer)| (id, core::muxing::StreamMuxerBox::new(muxer)))
+		})
+
+		    .timeout(Duration::from_secs(20))
+		    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+		    .boxed();
 
     transport
-        .upgrade(core::upgrade::Version::V1)
-        .authenticate(noise::NoiseConfig::ix(noise_keypair).into_authenticated())
-        .multiplex(yamux::Config::default())
-        .map(|(peer, muxer), _| (peer, core::muxing::StreamMuxerBox::new(muxer)))
-        .timeout(Duration::from_secs(20))
-        .boxed()
 }

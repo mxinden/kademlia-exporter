@@ -1,13 +1,26 @@
 use async_std::task;
+use libp2p::core::Multiaddr;
 use prometheus::{Encoder, Registry, TextEncoder};
 use std::{
     error::Error,
     sync::{Arc, Mutex},
 };
+use structopt::StructOpt;
 
 mod exporter;
 
+#[derive(Debug, StructOpt)]
+#[structopt(name = "Kademlia exporter", about = "Monitor the state of a Kademlia Dht.")]
+struct Opt {
+    #[structopt(long)]
+    dht: Vec<Multiaddr>,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    let opt = Opt::from_args();
+
+    env_logger::init();
+
     let (signal, exit) = exit_future::signal();
     let signal = Arc::new(Mutex::new(Some(signal)));
 
@@ -19,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     .unwrap();
 
     let registry = Registry::new();
-    let exporter = exporter::Exporter::new(&registry)?;
+    let exporter = exporter::Exporter::new(opt.dht, &registry)?;
 
     let exit_clone = exit.clone();
     let metrics_server = std::thread::spawn(move || {
