@@ -11,6 +11,7 @@ use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 use std::{
     collections::HashMap,
     error::Error,
+    net::IpAddr,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -133,7 +134,7 @@ impl Exporter {
                     } => {
                         let country = self
                             .multiaddresses_to_country_code(addresses.iter())
-                            .unwrap_or("unknown".to_string());
+                            .unwrap_or_else(|| "unknown".to_string());
 
                         // Check if it is a new node, or just an update to a node.
                         if old_peer.is_none() {
@@ -173,17 +174,18 @@ impl Exporter {
     }
 
     fn multiaddress_to_country_code(&self, address: &Multiaddr) -> Option<String> {
-        match address.iter().next()? {
-            Protocol::Ip4(addr) => {
-                if let Some(ip_db) = &self.ip_db {
-                    return ip_db
-                        .lookup::<geoip2::City>(std::net::IpAddr::V4(addr))
-                        .ok()?
-                        .country?
-                        .iso_code;
-                }
-            }
-            _ => {}
+        let ip_address = match address.iter().next()? {
+            Protocol::Ip4(addr) => Some(IpAddr::V4(addr)),
+            Protocol::Ip6(addr) => Some(IpAddr::V6(addr)),
+            _ => None,
+        }?;
+
+        if let Some(ip_db) = &self.ip_db {
+            return ip_db
+                .lookup::<geoip2::City>(ip_address)
+                .ok()?
+                .country?
+                .iso_code;
         }
 
         None
