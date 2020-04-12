@@ -1187,6 +1187,7 @@ dependencies = [
  "env_logger",
  "exit-future",
  "futures 0.3.4",
+ "futures-timer 3.0.2",
  "libp2p",
  "libp2p-kad",
  "prometheus",

@@ -1,4 +1,5 @@
 use futures::prelude::*;
+use futures_timer::Delay;
 use libp2p::{
     core::{
         self, either::EitherError, either::EitherOutput, multiaddr::Protocol,
@@ -7,10 +8,7 @@ use libp2p::{
     dns,
     identify::{Identify, IdentifyEvent},
     identity::Keypair,
-    kad::{
-        record::store::MemoryStore, Kademlia, KademliaConfig,
-        KademliaEvent,
-    },
+    kad::{record::store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent},
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     secio,
@@ -26,9 +24,13 @@ use std::{
     usize,
 };
 
+const RANDOM_WALK_INTERVAL: Duration = Duration::from_secs(10);
+
 pub struct Client {
     swarm: Swarm<MyBehaviour>,
     listening: bool,
+
+    random_walk: Delay,
 }
 
 impl Client {
@@ -56,6 +58,8 @@ impl Client {
         Ok(Client {
             swarm,
             listening: false,
+
+            random_walk: futures_timer::Delay::new(RANDOM_WALK_INTERVAL),
         })
     }
 }
@@ -63,8 +67,13 @@ impl Client {
 // TODO: this should be a stream instead.
 impl Stream for Client {
     type Item = Event;
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        match self.swarm.poll_next_unpin(cx) {
+    fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
+        if let Poll::Ready(()) = self.random_walk.poll_unpin(ctx) {
+            self.random_walk = Delay::new(RANDOM_WALK_INTERVAL);
+            self.swarm.kademlia.get_closest_peers(PeerId::random());
+        }
+
+        match self.swarm.poll_next_unpin(ctx) {
             Poll::Ready(Some(event)) => return Poll::Ready(Some(event)),
             Poll::Ready(None) => return Poll::Ready(None),
             Poll::Pending => {
