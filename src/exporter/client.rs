@@ -43,7 +43,10 @@ impl Client {
 
         let behaviour = MyBehaviour::new(local_key.clone())?;
         let transport = build_transport(local_key);
-        let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id).incoming_connection_limit(10).outgoing_connection_limit(10).build();
+        let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
+            .incoming_connection_limit(10)
+            .outgoing_connection_limit(10)
+            .build();
 
         // Listen on all interfaces and whatever port the OS assigns.
         Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;

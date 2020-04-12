@@ -46,8 +46,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     .unwrap();
 
     let registry = Registry::new();
-    let ip_db = opt.max_mind_db.map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
-    let exporter = exporter::Exporter::new(opt.dht_name.into_iter().zip(opt.dht_bootnode.into_iter()).collect(), ip_db, &registry)?;
+    let ip_db = opt
+        .max_mind_db
+        .map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
+    let exporter = exporter::Exporter::new(
+        opt.dht_name
+            .into_iter()
+            .zip(opt.dht_bootnode.into_iter())
+            .collect(),
+        ip_db,
+        &registry,
+    )?;
 
     let exit_clone = exit.clone();
     let metrics_server = std::thread::spawn(move || {
