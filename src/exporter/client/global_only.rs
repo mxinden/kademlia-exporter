@@ -33,23 +33,23 @@ impl<T: Transport> Transport for GlobalIpOnly<T> {
         match addr.iter().next() {
             Some(Protocol::Ip4(a)) => {
                 if a.is_global() {
-                    return self.inner.dial(addr);
+                    self.inner.dial(addr)
                 } else {
                     warn!("Not dialing non global IP address {:?}.", a);
-                    return Err(TransportError::MultiaddrNotSupported(addr));
+                    Err(TransportError::MultiaddrNotSupported(addr))
                 }
             }
             Some(Protocol::Ip6(a)) => {
                 if a.is_global() {
-                    return self.inner.dial(addr);
+                    self.inner.dial(addr)
                 } else {
                     warn!("Not dialing non global IP address {:?}.", a);
-                    return Err(TransportError::MultiaddrNotSupported(addr));
+                    Err(TransportError::MultiaddrNotSupported(addr))
                 }
             }
             _ => {
                 warn!("Not dialing unsupported Multiaddress {:?}.", addr);
-                return Err(TransportError::MultiaddrNotSupported(addr));
+                Err(TransportError::MultiaddrNotSupported(addr))
             }
         }
     }
