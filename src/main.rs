@@ -19,7 +19,9 @@ mod exporter;
 )]
 struct Opt {
     #[structopt(long)]
-    dht: Vec<Multiaddr>,
+    dht_name: Vec<String>,
+    #[structopt(long)]
+    dht_bootnode: Vec<Multiaddr>,
 
     #[structopt(long)]
     max_mind_db: Option<PathBuf>,
@@ -27,6 +29,9 @@ struct Opt {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let opt = Opt::from_args();
+    if opt.dht_name.len() != opt.dht_bootnode.len() {
+        panic!("Expected equal amount of bootnode and name arguments.");
+    }
 
     env_logger::init();
 
@@ -42,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let registry = Registry::new();
     let ip_db = opt.max_mind_db.map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
-    let exporter = exporter::Exporter::new(opt.dht, ip_db, &registry)?;
+    let exporter = exporter::Exporter::new(opt.dht_name.into_iter().zip(opt.dht_bootnode.into_iter()).collect(), ip_db, &registry)?;
 
     let exit_clone = exit.clone();
     let metrics_server = std::thread::spawn(move || {

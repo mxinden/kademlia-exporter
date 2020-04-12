@@ -19,15 +19,15 @@ pub(crate) struct Exporter {
     ip_db: Option<Reader<Vec<u8>>>,
 }
 impl Exporter {
-    pub(crate) fn new(dhts: Vec<Multiaddr>, ip_db: Option<Reader<Vec<u8>>>, registry: &Registry) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(dhts: Vec<(String, Multiaddr)>, ip_db: Option<Reader<Vec<u8>>>, registry: &Registry) -> Result<Self, Box<dyn Error>> {
         let metrics = Metrics::register(registry);
 
         let clients = dhts
             .into_iter()
-            .map(|addr| {
+            .map(|(name, bootnode)| {
                 (
-                    addr.iter().next().unwrap().to_string(),
-                    client::Client::new(addr).unwrap(),
+                    name,
+                    client::Client::new(bootnode).unwrap(),
                 )
             })
             .collect();
