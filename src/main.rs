@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     })
     .unwrap();
 
-    let registry = Registry::new();
+    let registry = Registry::new_custom(Some("kademlia_exporter".to_string()), None).unwrap();
     let ip_db = opt
         .max_mind_db
         .map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
