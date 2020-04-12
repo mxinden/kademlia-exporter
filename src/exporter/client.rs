@@ -12,7 +12,7 @@ use libp2p::{
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     secio,
-    swarm::{NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters},
+    swarm::{NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters, SwarmBuilder},
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
 use std::{
@@ -43,7 +43,7 @@ impl Client {
 
         let behaviour = MyBehaviour::new(local_key.clone())?;
         let transport = build_transport(local_key);
-        let mut swarm = Swarm::new(transport, behaviour, local_peer_id);
+        let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id).incoming_connection_limit(10).outgoing_connection_limit(10).build();
 
         // Listen on all interfaces and whatever port the OS assigns.
         Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
