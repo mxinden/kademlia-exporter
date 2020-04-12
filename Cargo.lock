@@ -1190,6 +1190,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "libp2p",
  "libp2p-kad",
+ "log",
  "prometheus",
  "structopt",
  "tide",

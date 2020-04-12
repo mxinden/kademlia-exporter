@@ -24,6 +24,8 @@ use std::{
     usize,
 };
 
+mod global_only;
+
 const RANDOM_WALK_INTERVAL: Duration = Duration::from_secs(10);
 
 pub struct Client {
@@ -173,7 +175,11 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour {
 
 fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Error> {
     let tcp = tcp::TcpConfig::new().nodelay(true);
-    let transport = dns::DnsConfig::new(tcp).unwrap();
+    // Ignore any non global IP addresses. Given the amount of private IP
+    // addresses in most Dhts dialing private IP addresses can easily be (and
+    // has been) interpreted as a port-scan by ones hosting provider.
+    let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
+    let transport = dns::DnsConfig::new(global_only_tcp).unwrap();
 
     let noise_keypair = noise::Keypair::new().into_authentic(&keypair).unwrap();
     let noise_config = noise::NoiseConfig::ix(noise_keypair);

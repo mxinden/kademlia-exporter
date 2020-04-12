@@ -1,3 +1,5 @@
+#![feature(ip)]
+
 use async_std::task;
 use libp2p::core::Multiaddr;
 use prometheus::{Encoder, Registry, TextEncoder};

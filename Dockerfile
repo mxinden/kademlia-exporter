@@ -1,10 +1,10 @@
 # Build container
 
-FROM rust as build
+FROM rustlang/rust:nightly as build
 
 COPY ./ ./
 
-RUN cargo build --release
+RUN cargo +nightly build --release
 
 RUN mkdir -p /build-out
 
