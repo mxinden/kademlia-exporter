@@ -5,6 +5,7 @@ use libp2p::core::Multiaddr;
 use prometheus::{Encoder, Registry, TextEncoder};
 use std::{
     error::Error,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 use structopt::StructOpt;
@@ -19,6 +20,9 @@ mod exporter;
 struct Opt {
     #[structopt(long)]
     dht: Vec<Multiaddr>,
+
+    #[structopt(long)]
+    max_mind_db: Option<PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -37,7 +41,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     .unwrap();
 
     let registry = Registry::new();
-    let exporter = exporter::Exporter::new(opt.dht, &registry)?;
+    let ip_db = opt.max_mind_db.map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
+    let exporter = exporter::Exporter::new(opt.dht, ip_db, &registry)?;
 
     let exit_clone = exit.clone();
     let metrics_server = std::thread::spawn(move || {

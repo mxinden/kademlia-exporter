@@ -20,4 +20,5 @@ exit-future = "0.2"
 ctrlc = "3"
 structopt = "0.3"
 futures-timer = "3"
+maxminddb = "*"
 
