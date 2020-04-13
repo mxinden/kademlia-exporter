@@ -1,5 +1,4 @@
 use futures::prelude::*;
-use futures_timer::Delay;
 use libp2p::{
     core::{
         self, either::EitherError, either::EitherOutput, multiaddr::Protocol,
@@ -26,13 +25,9 @@ use std::{
 
 mod global_only;
 
-const RANDOM_WALK_INTERVAL: Duration = Duration::from_secs(10);
-
 pub struct Client {
     swarm: Swarm<MyBehaviour>,
     listening: bool,
-
-    random_walk: Delay,
 }
 
 impl Client {
@@ -63,9 +58,11 @@ impl Client {
         Ok(Client {
             swarm,
             listening: false,
-
-            random_walk: futures_timer::Delay::new(RANDOM_WALK_INTERVAL),
         })
+    }
+
+    pub fn get_closest_peers(&mut self, peer_id: PeerId) {
+        self.swarm.kademlia.get_closest_peers(peer_id);
     }
 }
 
@@ -73,11 +70,6 @@ impl Client {
 impl Stream for Client {
     type Item = Event;
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(()) = self.random_walk.poll_unpin(ctx) {
-            self.random_walk = Delay::new(RANDOM_WALK_INTERVAL);
-            self.swarm.kademlia.get_closest_peers(PeerId::random());
-        }
-
         match self.swarm.poll_next_unpin(ctx) {
             Poll::Ready(Some(event)) => return Poll::Ready(Some(event)),
             Poll::Ready(None) => return Poll::Ready(None),
