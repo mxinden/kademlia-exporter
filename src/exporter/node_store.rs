@@ -1,7 +1,8 @@
-use std::{collections::HashMap, time::{Duration, Instant}};
 use libp2p::PeerId;
-use prometheus::{
-    GaugeVec, Opts, Registry,
+use prometheus::{GaugeVec, Opts, Registry};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
 };
 
 /// Stores information about a set of nodes for a single Dht.
@@ -25,7 +26,9 @@ impl NodeStore {
     pub fn observed_node(&mut self, node: Node) {
         match self.nodes.get_mut(&node.peer_id) {
             Some(n) => n.merge(node),
-            None => {self.nodes.insert(node.peer_id.clone(), node);},
+            None => {
+                self.nodes.insert(node.peer_id.clone(), node);
+            }
         }
     }
 
@@ -43,7 +46,10 @@ impl NodeStore {
             let since_last_seen = now - node.last_seen;
             for (time_barrier, countries) in &mut nodes_by_time_by_country {
                 if since_last_seen < *time_barrier {
-                    countries.entry(node.country.clone().unwrap_or("unknown".to_string())).and_modify(|v| *v += 1).or_insert(1);
+                    countries
+                        .entry(node.country.clone().unwrap_or("unknown".to_string()))
+                        .and_modify(|v| *v += 1)
+                        .or_insert(1);
                 }
             }
         }
@@ -52,7 +58,10 @@ impl NodeStore {
             let last_seen_within = format!("{:?}h", time_barrier.as_secs() / 60 / 60);
 
             for (country, count) in countries {
-                self.metrics.nodes.with_label_values(&[&self.dht, &country, &last_seen_within]).set(count as f64);
+                self.metrics
+                    .nodes
+                    .with_label_values(&[&self.dht, &country, &last_seen_within])
+                    .set(count as f64);
             }
         }
     }
@@ -95,19 +104,12 @@ pub struct Metrics {
 impl Metrics {
     pub fn register(registry: &Registry) -> Metrics {
         let nodes = GaugeVec::new(
-            Opts::new(
-                "nodes",
-                "Unique nodes discovered through the Dht.",
-            ),
+            Opts::new("nodes", "Unique nodes discovered through the Dht."),
             &["dht", "country", "last_seen_within"],
         )
         .unwrap();
-        registry
-            .register(Box::new(nodes.clone()))
-            .unwrap();
+        registry.register(Box::new(nodes.clone())).unwrap();
 
-        Metrics {
-            nodes,
-        }
+        Metrics { nodes }
     }
 }

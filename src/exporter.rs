@@ -1,5 +1,4 @@
 use client::Client;
-use node_store::{Node, NodeStore};
 use futures::prelude::*;
 use futures_timer::Delay;
 use libp2p::{
@@ -10,6 +9,7 @@ use libp2p::{
     PeerId,
 };
 use maxminddb::{geoip2, Reader};
+use node_store::{Node, NodeStore};
 use prometheus::{
     exponential_buckets, CounterVec, HistogramOpts, HistogramTimer, HistogramVec, Opts, Registry,
 };
@@ -56,7 +56,15 @@ impl Exporter {
             .collect();
 
         let node_store_metrics = node_store::Metrics::register(registry);
-        let node_stores = dhts.into_iter().map(|(name, _)| (name.clone(), NodeStore::new(name, node_store_metrics.clone()))).collect();
+        let node_stores = dhts
+            .into_iter()
+            .map(|(name, _)| {
+                (
+                    name.clone(),
+                    NodeStore::new(name, node_store_metrics.clone()),
+                )
+            })
+            .collect();
 
         Ok(Exporter {
             clients,
@@ -75,7 +83,8 @@ impl Exporter {
             // TODO: We could also expose the ping latency.
             client::Event::Ping(PingEvent { peer, result }) => {
                 if result.is_ok() {
-                    self.node_stores.get_mut(&name)
+                    self.node_stores
+                        .get_mut(&name)
                         .unwrap()
                         .observed_node(Node::new(peer));
                 }
@@ -98,7 +107,8 @@ impl Exporter {
                         .inc();
                 }
                 IdentifyEvent::Received { peer_id, .. } => {
-                    self.node_stores.get_mut(&name)
+                    self.node_stores
+                        .get_mut(&name)
                         .unwrap()
                         .observed_node(Node::new(peer_id));
 
@@ -108,97 +118,96 @@ impl Exporter {
                         .inc();
                 }
             },
-            client::Event::Kademlia(event) => {
-                match *event {
-                    KademliaEvent::BootstrapResult(_) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "bootstrap"])
-                            .inc();
-                    }
-                    KademliaEvent::GetClosestPeersResult(res) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "get_closest_peers"])
-                            .inc();
-
-                        let peer_id = PeerId::from_bytes(match res {
-                            Ok(GetClosestPeersOk { key, .. }) => key,
-                            Err(err) => err.into_key(),
-                        })
-                        .unwrap();
-                        self.in_flight_lookups.remove(&peer_id);
-                    }
-                    KademliaEvent::GetProvidersResult(_) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "get_providers"])
-                            .inc();
-                    }
-                    KademliaEvent::StartProvidingResult(_) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "start_providing"])
-                            .inc();
-                    }
-                    KademliaEvent::RepublishProviderResult(_) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "republish_provider"])
-                            .inc();
-                    }
-                    KademliaEvent::GetRecordResult(_) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "get_record"])
-                            .inc();
-                    }
-                    KademliaEvent::PutRecordResult(_) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "put_record"])
-                            .inc();
-                    }
-                    KademliaEvent::RepublishRecordResult(_) => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "republish_record"])
-                            .inc();
-                    }
-                    KademliaEvent::Discovered { peer_id, .. } => {
-                        self.node_stores.get_mut(&name)
-                            .unwrap()
-                            .observed_node(Node::new(peer_id));
-
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "discovered"])
-                            .inc();
-                    }
-                    KademliaEvent::RoutingUpdated {
-                        peer,
-                        addresses,
-                        _old_peer,
-                    } => {
-                        let mut node = Node::new(peer);
-                        if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
-                            node = node.with_country(country);
-                        }
-                        self.node_stores.get_mut(&name).unwrap().observed_node(node);
-
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "routing_updated"])
-                            .inc();
-                    }
-                    KademliaEvent::UnroutablePeer { .. } => {
-                        self.metrics
-                            .event_counter
-                            .with_label_values(&[&name, "kad", "unroutable_peer"])
-                            .inc();
-                    }
+            client::Event::Kademlia(event) => match *event {
+                KademliaEvent::BootstrapResult(_) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "bootstrap"])
+                        .inc();
                 }
-            }
+                KademliaEvent::GetClosestPeersResult(res) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "get_closest_peers"])
+                        .inc();
+
+                    let peer_id = PeerId::from_bytes(match res {
+                        Ok(GetClosestPeersOk { key, .. }) => key,
+                        Err(err) => err.into_key(),
+                    })
+                    .unwrap();
+                    self.in_flight_lookups.remove(&peer_id);
+                }
+                KademliaEvent::GetProvidersResult(_) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "get_providers"])
+                        .inc();
+                }
+                KademliaEvent::StartProvidingResult(_) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "start_providing"])
+                        .inc();
+                }
+                KademliaEvent::RepublishProviderResult(_) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "republish_provider"])
+                        .inc();
+                }
+                KademliaEvent::GetRecordResult(_) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "get_record"])
+                        .inc();
+                }
+                KademliaEvent::PutRecordResult(_) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "put_record"])
+                        .inc();
+                }
+                KademliaEvent::RepublishRecordResult(_) => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "republish_record"])
+                        .inc();
+                }
+                KademliaEvent::Discovered { peer_id, .. } => {
+                    self.node_stores
+                        .get_mut(&name)
+                        .unwrap()
+                        .observed_node(Node::new(peer_id));
+
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "discovered"])
+                        .inc();
+                }
+                KademliaEvent::RoutingUpdated {
+                    peer,
+                    addresses,
+                    ..
+                } => {
+                    let mut node = Node::new(peer);
+                    if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
+                        node = node.with_country(country);
+                    }
+                    self.node_stores.get_mut(&name).unwrap().observed_node(node);
+
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "routing_updated"])
+                        .inc();
+                }
+                KademliaEvent::UnroutablePeer { .. } => {
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "kad", "unroutable_peer"])
+                        .inc();
+                }
+            },
         }
     }
 
