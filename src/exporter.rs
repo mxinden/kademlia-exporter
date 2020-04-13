@@ -5,7 +5,7 @@ use libp2p::{
     identify::IdentifyEvent,
     kad::{GetClosestPeersOk, KademliaEvent},
     multiaddr::{Multiaddr, Protocol},
-    ping::PingEvent,
+    ping::{PingEvent, PingSuccess},
     PeerId,
 };
 use maxminddb::{geoip2, Reader};
@@ -82,16 +82,26 @@ impl Exporter {
         match event {
             // TODO: We could also expose the ping latency.
             client::Event::Ping(PingEvent { peer, result }) => {
-                if result.is_ok() {
+                let event = match result {
+                    // Sent a ping and received back a pong.
+                    Ok(PingSuccess::Ping { .. }) => Some("received_pong"),
+                    // Received a ping and sent back a pong.
+                    Ok(PingSuccess::Pong) => Some("received_ping"),
+                    Err(_) => None,
+                };
+
+                if let Some(event) = event {
+                    // Record the fact that we witnessed the node being online.
                     self.node_stores
                         .get_mut(&name)
                         .unwrap()
                         .observed_node(Node::new(peer));
+
+                    self.metrics
+                        .event_counter
+                        .with_label_values(&[&name, "ping", event])
+                        .inc();
                 }
-                self.metrics
-                    .event_counter
-                    .with_label_values(&[&name, "ping", "ping_event"])
-                    .inc();
             }
             client::Event::Identify(event) => match *event {
                 IdentifyEvent::Error { .. } => {
@@ -186,9 +196,7 @@ impl Exporter {
                         .inc();
                 }
                 KademliaEvent::RoutingUpdated {
-                    peer,
-                    addresses,
-                    ..
+                    peer, addresses, ..
                 } => {
                     let mut node = Node::new(peer);
                     if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {

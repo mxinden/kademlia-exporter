@@ -47,7 +47,11 @@ impl NodeStore {
             for (time_barrier, countries) in &mut nodes_by_time_by_country {
                 if since_last_seen < *time_barrier {
                     countries
-                        .entry(node.country.clone().unwrap_or_else(|| "unknown".to_string()))
+                        .entry(
+                            node.country
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_string()),
+                        )
                         .and_modify(|v| *v += 1)
                         .or_insert(1);
                 }
