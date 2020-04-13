@@ -184,12 +184,9 @@ impl Exporter {
                         .with_label_values(&[&name, "kad", "republish_record"])
                         .inc();
                 }
+                // Note: Do not interpret Discovered event as a proof of a node
+                // being online.
                 KademliaEvent::Discovered { peer_id, .. } => {
-                    self.node_stores
-                        .get_mut(&name)
-                        .unwrap()
-                        .observed_node(Node::new(peer_id));
-
                     self.metrics
                         .event_counter
                         .with_label_values(&[&name, "kad", "discovered"])
