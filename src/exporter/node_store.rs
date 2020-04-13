@@ -42,12 +42,12 @@ impl NodeStore {
             nodes_by_time_by_country.insert(Duration::from_secs(60 * 60 * *factor), HashMap::new());
         }
 
-        for (_peer_id, node) in &self.nodes {
+        for node in self.nodes.values() {
             let since_last_seen = now - node.last_seen;
             for (time_barrier, countries) in &mut nodes_by_time_by_country {
                 if since_last_seen < *time_barrier {
                     countries
-                        .entry(node.country.clone().unwrap_or("unknown".to_string()))
+                        .entry(node.country.clone().unwrap_or_else(|| "unknown".to_string()))
                         .and_modify(|v| *v += 1)
                         .or_insert(1);
                 }

@@ -252,7 +252,7 @@ impl Future for Exporter {
         if let Poll::Ready(()) = this.tick.poll_unpin(ctx) {
             this.tick = Delay::new(TICK_INTERVAL);
 
-            for (_, node_store) in &mut this.node_stores {
+            for node_store in &mut this.node_stores.values() {
                 node_store.update_metrics();
             }
 
