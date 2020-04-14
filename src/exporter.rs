@@ -8,6 +8,7 @@ use libp2p::{
     ping::{PingEvent, PingSuccess},
     PeerId,
 };
+use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
 use prometheus::{
@@ -39,6 +40,9 @@ pub(crate) struct Exporter {
     in_flight_lookups: HashMap<PeerId, HistogramTimer>,
     tick: Delay,
     metrics: Metrics,
+    /// An exporter periodically reconnects to each discovered node to probe
+    /// whether it is still online.
+    nodes_to_probe_periodically: HashMap<String, Vec<PeerId>>,
 }
 
 impl Exporter {
@@ -57,6 +61,7 @@ impl Exporter {
 
         let node_store_metrics = node_store::Metrics::register(registry);
         let node_stores = dhts
+            .clone()
             .into_iter()
             .map(|(name, _)| {
                 (
@@ -65,6 +70,9 @@ impl Exporter {
                 )
             })
             .collect();
+
+        let nodes_to_probe_periodically =
+            dhts.into_iter().map(|(name, _)| (name, vec![])).collect();
 
         Ok(Exporter {
             clients,
@@ -75,6 +83,7 @@ impl Exporter {
             tick: futures_timer::Delay::new(TICK_INTERVAL),
 
             in_flight_lookups: HashMap::new(),
+            nodes_to_probe_periodically,
         })
     }
 
@@ -186,7 +195,7 @@ impl Exporter {
                 }
                 // Note: Do not interpret Discovered event as a proof of a node
                 // being online.
-                KademliaEvent::Discovered { peer_id, .. } => {
+                KademliaEvent::Discovered { .. } => {
                     self.metrics
                         .event_counter
                         .with_label_values(&[&name, "kad", "discovered"])
@@ -259,6 +268,31 @@ impl Future for Exporter {
 
             for node_store in &mut this.node_stores.values() {
                 node_store.update_metrics();
+            }
+
+            for (dht, nodes) in &mut this.nodes_to_probe_periodically {
+                match nodes.pop() {
+                    Some(peer_id) => {
+                        info!("Checking if {:?} is still online.", &peer_id);
+                        if this.clients.get_mut(dht).unwrap().dial(&peer_id).is_err() {
+                            // Connection limit reached. Retry later.
+                            nodes.insert(0, peer_id);
+                        }
+                    }
+                    // List is empty. Reconnected to every peer. Refill the
+                    // list.
+                    None => {
+                        nodes.append(
+                            &mut this
+                                .node_stores
+                                .get(dht)
+                                .unwrap()
+                                .iter()
+                                .map(|n| n.peer_id.clone())
+                                .collect(),
+                        );
+                    }
+                }
             }
 
             // Trigger a random lookup for each client.

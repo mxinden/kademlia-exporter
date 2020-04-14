@@ -1,6 +1,7 @@
 use futures::prelude::*;
 use libp2p::{
     core::{
+        connection::ConnectionLimit,
         self, either::EitherError, either::EitherOutput, multiaddr::Protocol,
         muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, upgrade, Multiaddr,
     },
@@ -63,6 +64,10 @@ impl Client {
 
     pub fn get_closest_peers(&mut self, peer_id: PeerId) {
         self.swarm.kademlia.get_closest_peers(peer_id);
+    }
+
+    pub fn dial(&mut self, peer_id: &PeerId) -> Result<bool, ConnectionLimit> {
+        Swarm::dial(&mut self.swarm, peer_id)
     }
 }
 

@@ -69,10 +69,14 @@ impl NodeStore {
             }
         }
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
+    }
 }
 
 pub struct Node {
-    peer_id: PeerId,
+    pub peer_id: PeerId,
     country: Option<String>,
     last_seen: Instant,
 }
