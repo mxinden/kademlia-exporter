@@ -12,7 +12,7 @@ use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
 use prometheus::{
-    exponential_buckets, CounterVec, HistogramOpts, HistogramTimer, HistogramVec, Opts, Registry,
+    exponential_buckets, CounterVec, HistogramOpts, HistogramVec, Opts, Registry,
 };
 use std::{
     collections::HashMap,
@@ -20,7 +20,7 @@ use std::{
     net::IpAddr,
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 mod client;
@@ -37,7 +37,7 @@ pub(crate) struct Exporter {
     ///
     /// When a lookup returns the entry is dropped and thus the duratation is
     /// observed through `<HistogramTimer as Drop>::drop`.
-    in_flight_lookups: HashMap<PeerId, HistogramTimer>,
+    in_flight_lookups: HashMap<PeerId, Instant>,
     tick: Delay,
     metrics: Metrics,
     /// An exporter periodically reconnects to each discovered node to probe
@@ -150,12 +150,18 @@ impl Exporter {
                         .with_label_values(&[&name, "kad", "get_closest_peers"])
                         .inc();
 
+                    // Record lookup latency.
+                    let result_label = if res.is_ok() { "ok" } else { "error" };
                     let peer_id = PeerId::from_bytes(match res {
                         Ok(GetClosestPeersOk { key, .. }) => key,
                         Err(err) => err.into_key(),
                     })
                     .unwrap();
-                    self.in_flight_lookups.remove(&peer_id);
+                    let duration = Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
+                    self.metrics
+                        .random_node_lookup_duration
+                        .with_label_values(&[&name, result_label])
+                        .observe(duration.as_secs_f64());
                 }
                 KademliaEvent::GetProvidersResult(_) => {
                     self.metrics
@@ -296,15 +302,10 @@ impl Future for Exporter {
             }
 
             // Trigger a random lookup for each client.
-            for (name, client) in &mut this.clients {
+            for (_, client) in &mut this.clients {
                 let random_peer = PeerId::random();
-                let timer = this
-                    .metrics
-                    .random_node_lookup_duration
-                    .with_label_values(&[&name])
-                    .start_timer();
                 client.get_closest_peers(random_peer.clone());
-                this.in_flight_lookups.insert(random_peer, timer);
+                this.in_flight_lookups.insert(random_peer, Instant::now());
             }
         }
 
@@ -349,10 +350,10 @@ impl Metrics {
         let random_node_lookup_duration = HistogramVec::new(
             HistogramOpts::new(
                 "random_node_lookup_duration",
-                "Duration of random node lookups.",
+                "Duration of random node lookup.",
             )
             .buckets(exponential_buckets(0.1, 2.0, 10).unwrap()),
-            &["dht"],
+            &["dht", "result"],
         )
         .unwrap();
         registry
