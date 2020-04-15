@@ -316,7 +316,7 @@ impl Future for Exporter {
             }
 
             // Trigger a random lookup for each client.
-            for client in &mut this.clients.values() {
+            for client in this.clients.values_mut() {
                 let random_peer = PeerId::random();
                 client.get_closest_peers(random_peer.clone());
                 this.in_flight_lookups.insert(random_peer, Instant::now());
