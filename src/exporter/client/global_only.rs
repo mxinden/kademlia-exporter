@@ -3,7 +3,7 @@ use libp2p::core::{
     transport::TransportError,
     Transport,
 };
-use log::warn;
+use log::debug;
 
 // Wrapper around a libp2p `Transport` dropping all dial requests to non-global
 // IP addresses.
@@ -35,7 +35,7 @@ impl<T: Transport> Transport for GlobalIpOnly<T> {
                 if a.is_global() {
                     self.inner.dial(addr)
                 } else {
-                    warn!("Not dialing non global IP address {:?}.", a);
+                    debug!("Not dialing non global IP address {:?}.", a);
                     Err(TransportError::MultiaddrNotSupported(addr))
                 }
             }
@@ -43,12 +43,12 @@ impl<T: Transport> Transport for GlobalIpOnly<T> {
                 if a.is_global() {
                     self.inner.dial(addr)
                 } else {
-                    warn!("Not dialing non global IP address {:?}.", a);
+                    debug!("Not dialing non global IP address {:?}.", a);
                     Err(TransportError::MultiaddrNotSupported(addr))
                 }
             }
             _ => {
-                warn!("Not dialing unsupported Multiaddress {:?}.", addr);
+                debug!("Not dialing unsupported Multiaddress {:?}.", addr);
                 Err(TransportError::MultiaddrNotSupported(addr))
             }
         }
