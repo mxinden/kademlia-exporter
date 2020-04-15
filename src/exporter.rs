@@ -11,9 +11,7 @@ use libp2p::{
 use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
-use prometheus::{
-    exponential_buckets, CounterVec, HistogramOpts, HistogramVec, Opts, Registry,
-};
+use prometheus::{exponential_buckets, CounterVec, HistogramOpts, HistogramVec, Opts, Registry};
 use std::{
     collections::HashMap,
     error::Error,
@@ -91,9 +89,24 @@ impl Exporter {
         match event {
             // TODO: We could also expose the ping latency.
             client::Event::Ping(PingEvent { peer, result }) => {
+                let country = self
+                    .node_stores
+                    .get_mut(&name)
+                    .unwrap()
+                    .get_peer(&peer)
+                    .map(|p| p.country.clone())
+                    .flatten()
+                    .unwrap_or_else(|| "unknown".to_string());
+
                 let event = match result {
                     // Sent a ping and received back a pong.
-                    Ok(PingSuccess::Ping { .. }) => Some("received_pong"),
+                    Ok(PingSuccess::Ping { rtt }) => {
+                        self.metrics
+                            .ping_duration
+                            .with_label_values(&[&name, &country])
+                            .observe(rtt.as_secs_f64());
+                        Some("received_pong")
+                    }
                     // Received a ping and sent back a pong.
                     Ok(PingSuccess::Pong) => Some("received_ping"),
                     Err(_) => None,
@@ -157,7 +170,8 @@ impl Exporter {
                         Err(err) => err.into_key(),
                     })
                     .unwrap();
-                    let duration = Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
+                    let duration =
+                        Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
                     self.metrics
                         .random_node_lookup_duration
                         .with_label_values(&[&name, result_label])
@@ -332,6 +346,7 @@ impl Future for Exporter {
 struct Metrics {
     event_counter: CounterVec,
 
+    ping_duration: HistogramVec,
     random_node_lookup_duration: HistogramVec,
 }
 
@@ -360,9 +375,17 @@ impl Metrics {
             .register(Box::new(random_node_lookup_duration.clone()))
             .unwrap();
 
+        let ping_duration = HistogramVec::new(
+            HistogramOpts::new("ping_duration", "Duration of a ping round trip."),
+            &["dht", "country"],
+        )
+        .unwrap();
+        registry.register(Box::new(ping_duration.clone())).unwrap();
+
         Metrics {
             event_counter,
 
+            ping_duration,
             random_node_lookup_duration,
         }
     }

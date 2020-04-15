@@ -70,6 +70,10 @@ impl NodeStore {
         }
     }
 
+    pub fn get_peer(&self, peer_id: &PeerId) -> Option<&Node> {
+        self.nodes.get(peer_id)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
     }
@@ -77,7 +81,7 @@ impl NodeStore {
 
 pub struct Node {
     pub peer_id: PeerId,
-    country: Option<String>,
+    pub country: Option<String>,
     last_seen: Instant,
 }
 
