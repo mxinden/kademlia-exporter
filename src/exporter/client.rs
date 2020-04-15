@@ -1,9 +1,9 @@
 use futures::prelude::*;
 use libp2p::{
     core::{
-        connection::ConnectionLimit,
-        self, either::EitherError, either::EitherOutput, multiaddr::Protocol,
-        muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, upgrade, Multiaddr,
+        self, connection::ConnectionLimit, either::EitherError, either::EitherOutput,
+        multiaddr::Protocol, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport,
+        upgrade, Multiaddr,
     },
     dns,
     identify::{Identify, IdentifyEvent},
