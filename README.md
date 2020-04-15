@@ -4,7 +4,10 @@ Exporter exposing [Prometheus](https://prometheus.io/) metrics for
 [libp2p](https://github.com/libp2p/) Kademlia distributed hash tables.
 
 
-*Information below is likely outdated. Source code is the source of truth.*
+![Sample Graph](./.assets/random-node-lookup.png)
+
+
+*Information below is likely outdated. Code is the source of truth.*
 
 
 ### Quickstart
