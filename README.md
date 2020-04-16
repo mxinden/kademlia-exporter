@@ -30,8 +30,11 @@ cargo +nightly run -- --dht-name <dht-name> --dht-bootnode <dht-bootnode> --mad-
 
 ### Metrics
 
-- Number of nodes discovered.
-  `kademlia_exporter_nodes{country,dht,last_seen_within}`
+- Unique nodes discovered within the time bound through the Dht.
+  `kademlia_exporter_nodes_seen_within{country,dht,last_seen_within}`
+
+- Unique nodes discovered through the Dht and up since timebound.
+  `kademlia_exporter_nodes_up_since{country,dht,up_since}`
 
 - Libp2p network behaviour events.
   `kademlia_exporter_network_behaviour_event{behaviour,dht,event}`

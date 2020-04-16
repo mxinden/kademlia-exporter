@@ -109,7 +109,13 @@ impl Exporter {
                     }
                     // Received a ping and sent back a pong.
                     Ok(PingSuccess::Pong) => Some("received_ping"),
-                    Err(_) => None,
+                    Err(_) => {
+                        self.node_stores
+                            .get_mut(&name)
+                            .unwrap()
+                            .observed_down(&peer);
+                        None
+                    }
                 };
 
                 if let Some(event) = event {

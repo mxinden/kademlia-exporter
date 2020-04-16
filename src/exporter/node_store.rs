@@ -32,8 +32,16 @@ impl NodeStore {
         }
     }
 
+    pub fn observed_down(&mut self, peer_id: &PeerId) {
+        self.nodes.get_mut(peer_id).unwrap().up_since = None;
+    }
+
     pub fn update_metrics(&self) {
         let now = Instant::now();
+
+        //
+        // Seen within
+        //
 
         let mut nodes_by_time_by_country = HashMap::<Duration, HashMap<String, u64>>::new();
 
@@ -63,8 +71,50 @@ impl NodeStore {
 
             for (country, count) in countries {
                 self.metrics
-                    .nodes
+                    .nodes_seen_within
                     .with_label_values(&[&self.dht, &country, &last_seen_within])
+                    .set(count as f64);
+            }
+        }
+
+        //
+        // Up since
+        //
+
+        let mut nodes_by_time_by_country = HashMap::<Duration, HashMap<String, u64>>::new();
+
+        // Insert 3h, 6h, ... buckets.
+        for factor in &[3, 6, 12, 24, 48, 96] {
+            nodes_by_time_by_country.insert(Duration::from_secs(60 * 60 * *factor), HashMap::new());
+        }
+
+        for node in self.nodes.values() {
+            let up_since = match node.up_since {
+                Some(instant) => instant,
+                None => continue,
+            };
+
+            for (time_barrier, countries) in &mut nodes_by_time_by_country {
+                if Instant::now() - up_since > *time_barrier {
+                    countries
+                        .entry(
+                            node.country
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_string()),
+                        )
+                        .and_modify(|v| *v += 1)
+                        .or_insert(1);
+                }
+            }
+        }
+
+        for (time_barrier, countries) in nodes_by_time_by_country {
+            let up_since = format!("{:?}h", time_barrier.as_secs() / 60 / 60);
+
+            for (country, count) in countries {
+                self.metrics
+                    .nodes_up_since
+                    .with_label_values(&[&self.dht, &country, &up_since])
                     .set(count as f64);
             }
         }
@@ -83,6 +133,7 @@ pub struct Node {
     pub peer_id: PeerId,
     pub country: Option<String>,
     last_seen: Instant,
+    up_since: Option<Instant>,
 }
 
 impl Node {
@@ -91,6 +142,7 @@ impl Node {
             peer_id,
             country: None,
             last_seen: Instant::now(),
+            up_since: Some(Instant::now()),
         }
     }
 
@@ -101,6 +153,7 @@ impl Node {
 
     fn merge(&mut self, other: Node) {
         self.country = self.country.take().or(other.country);
+        self.up_since = self.up_since.take().or(other.up_since);
 
         if self.last_seen < other.last_seen {
             self.last_seen = other.last_seen;
@@ -110,18 +163,37 @@ impl Node {
 
 #[derive(Clone)]
 pub struct Metrics {
-    nodes: GaugeVec,
+    nodes_seen_within: GaugeVec,
+    nodes_up_since: GaugeVec,
 }
 
 impl Metrics {
     pub fn register(registry: &Registry) -> Metrics {
-        let nodes = GaugeVec::new(
-            Opts::new("nodes", "Unique nodes discovered through the Dht."),
+        let nodes_seen_within = GaugeVec::new(
+            Opts::new(
+                "nodes_seen_within",
+                "Unique nodes discovered within the time bound through the Dht.",
+            ),
             &["dht", "country", "last_seen_within"],
         )
         .unwrap();
-        registry.register(Box::new(nodes.clone())).unwrap();
+        registry
+            .register(Box::new(nodes_seen_within.clone()))
+            .unwrap();
 
-        Metrics { nodes }
+        let nodes_up_since = GaugeVec::new(
+            Opts::new(
+                "nodes_up_since",
+                "Unique nodes discovered through the Dht and up since timebound.",
+            ),
+            &["dht", "country", "up_since"],
+        )
+        .unwrap();
+        registry.register(Box::new(nodes_up_since.clone())).unwrap();
+
+        Metrics {
+            nodes_seen_within,
+            nodes_up_since,
+        }
     }
 }
