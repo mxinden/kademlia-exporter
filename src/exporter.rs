@@ -292,8 +292,8 @@ impl Future for Exporter {
         if let Poll::Ready(()) = this.tick.poll_unpin(ctx) {
             this.tick = Delay::new(TICK_INTERVAL);
 
-            for node_store in &mut this.node_stores.values() {
-                node_store.update_metrics();
+            for node_store in &mut this.node_stores.values_mut() {
+                node_store.tick();
             }
 
             // TODO: Introduce meta monitoring to find out how many nodes we actually check.

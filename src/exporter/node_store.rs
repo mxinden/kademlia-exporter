@@ -1,5 +1,5 @@
 use libp2p::PeerId;
-use prometheus::{GaugeVec, Opts, Registry};
+use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
@@ -36,7 +36,20 @@ impl NodeStore {
         self.nodes.get_mut(peer_id).unwrap().up_since = None;
     }
 
-    pub fn update_metrics(&self) {
+    pub fn tick(&mut self) {
+        self.update_metrics();
+
+        // Remove old offline nodes.
+        let length = self.nodes.len();
+        self.nodes
+            .retain(|_, n| (Instant::now() - n.last_seen) > Duration::from_secs(60 * 60 * 24));
+        self.metrics
+            .meta_offline_nodes_removed
+            .with_label_values(&[&self.dht])
+            .inc_by((length - self.nodes.len()) as f64);
+    }
+
+    fn update_metrics(&self) {
         let now = Instant::now();
 
         //
@@ -165,6 +178,8 @@ impl Node {
 pub struct Metrics {
     nodes_seen_within: GaugeVec,
     nodes_up_since: GaugeVec,
+
+    meta_offline_nodes_removed: CounterVec,
 }
 
 impl Metrics {
@@ -191,9 +206,23 @@ impl Metrics {
         .unwrap();
         registry.register(Box::new(nodes_up_since.clone())).unwrap();
 
+        let meta_offline_nodes_removed = CounterVec::new(
+            Opts::new(
+                "meta_offline_nodes_removed",
+                "Number of nodes removed due to being offline longer than 24h.",
+            ),
+            &["dht"],
+        )
+        .unwrap();
+        registry
+            .register(Box::new(meta_offline_nodes_removed.clone()))
+            .unwrap();
+
         Metrics {
             nodes_seen_within,
             nodes_up_since,
+
+            meta_offline_nodes_removed,
         }
     }
 }
