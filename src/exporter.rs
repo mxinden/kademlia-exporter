@@ -296,6 +296,7 @@ impl Future for Exporter {
                 node_store.update_metrics();
             }
 
+            // TODO: Introduce meta monitoring to find out how many nodes we actually check.
             for (dht, nodes) in &mut this.nodes_to_probe_periodically {
                 match nodes.pop() {
                     Some(peer_id) => {
@@ -322,7 +323,11 @@ impl Future for Exporter {
             }
 
             // Trigger a random lookup for each client.
-            for client in this.clients.values_mut() {
+            for (name, client) in this.clients.iter_mut() {
+                this.metrics
+                    .meta_random_node_lookup_triggered
+                    .with_label_values(&[name])
+                    .inc();
                 let random_peer = PeerId::random();
                 client.get_closest_peers(random_peer.clone());
                 this.in_flight_lookups.insert(random_peer, Instant::now());
@@ -354,6 +359,8 @@ struct Metrics {
 
     ping_duration: HistogramVec,
     random_node_lookup_duration: HistogramVec,
+
+    meta_random_node_lookup_triggered: CounterVec,
 }
 
 impl Metrics {
@@ -388,11 +395,25 @@ impl Metrics {
         .unwrap();
         registry.register(Box::new(ping_duration.clone())).unwrap();
 
+        let meta_random_node_lookup_triggered = CounterVec::new(
+            Opts::new(
+                "meta_random_node_lookup_triggered",
+                "Number of times a random Kademlia node lookup was triggered.",
+            ),
+            &["dht"],
+        )
+        .unwrap();
+        registry
+            .register(Box::new(meta_random_node_lookup_triggered.clone()))
+            .unwrap();
+
         Metrics {
             event_counter,
 
             ping_duration,
             random_node_lookup_duration,
+
+            meta_random_node_lookup_triggered,
         }
     }
 }
