@@ -89,6 +89,20 @@ impl Exporter {
         match event {
             // TODO: We could also expose the ping latency.
             client::Event::Ping(PingEvent { peer, result }) => {
+                // Update node store.
+                match result {
+                    Ok(_) => self
+                        .node_stores
+                        .get_mut(&name)
+                        .unwrap()
+                        .observed_node(Node::new(peer.clone())),
+                    Err(_) => self
+                        .node_stores
+                        .get_mut(&name)
+                        .unwrap()
+                        .observed_down(&peer),
+                }
+
                 let country = self
                     .node_stores
                     .get_mut(&name)
@@ -105,31 +119,17 @@ impl Exporter {
                             .ping_duration
                             .with_label_values(&[&name, &country])
                             .observe(rtt.as_secs_f64());
-                        Some("received_pong")
+                        "received_pong"
                     }
                     // Received a ping and sent back a pong.
-                    Ok(PingSuccess::Pong) => Some("received_ping"),
-                    Err(_) => {
-                        self.node_stores
-                            .get_mut(&name)
-                            .unwrap()
-                            .observed_down(&peer);
-                        None
-                    }
+                    Ok(PingSuccess::Pong) => "received_ping",
+                    Err(_) => "error",
                 };
 
-                if let Some(event) = event {
-                    // Record the fact that we witnessed the node being online.
-                    self.node_stores
-                        .get_mut(&name)
-                        .unwrap()
-                        .observed_node(Node::new(peer));
-
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "ping", event])
-                        .inc();
-                }
+                self.metrics
+                    .event_counter
+                    .with_label_values(&[&name, "ping", event])
+                    .inc();
             }
             client::Event::Identify(event) => match *event {
                 IdentifyEvent::Error { .. } => {
