@@ -42,7 +42,7 @@ impl NodeStore {
         // Remove old offline nodes.
         let length = self.nodes.len();
         self.nodes
-            .retain(|_, n| (Instant::now() - n.last_seen) > Duration::from_secs(60 * 60 * 24));
+            .retain(|_, n| (Instant::now() - n.last_seen) < Duration::from_secs(60 * 60 * 24));
         self.metrics
             .meta_offline_nodes_removed
             .with_label_values(&[&self.dht])
