@@ -102,6 +102,12 @@ impl NodeStore {
         }
 
         for node in self.nodes.values() {
+            // Safeguard in case exporter is behind on probing every nodes
+            // uptime.
+            if Instant::now() - node.last_seen > Duration::from_secs(60 * 60) {
+                continue
+            }
+
             let up_since = match node.up_since {
                 Some(instant) => instant,
                 None => continue,

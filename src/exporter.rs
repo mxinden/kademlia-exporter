@@ -24,7 +24,7 @@ use std::{
 mod client;
 mod node_store;
 
-const TICK_INTERVAL: Duration = Duration::from_secs(10);
+const TICK_INTERVAL: Duration = Duration::from_secs(1);
 
 pub(crate) struct Exporter {
     // TODO: Introduce dht id new type.
