@@ -10,6 +10,7 @@ use std::{
 };
 use structopt::StructOpt;
 
+mod cloud_provider_db;
 mod exporter;
 
 #[derive(Debug, StructOpt)]
@@ -25,6 +26,8 @@ struct Opt {
 
     #[structopt(long)]
     max_mind_db: Option<PathBuf>,
+    #[structopt(long)]
+    cloud_provider_db: Option<PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -49,12 +52,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let ip_db = opt
         .max_mind_db
         .map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
+    let cloud_provider_db = opt
+        .cloud_provider_db
+        .map(|path| cloud_provider_db::Db::new(path).expect("Failed to parse cloud provider db."));
     let exporter = exporter::Exporter::new(
         opt.dht_name
             .into_iter()
             .zip(opt.dht_bootnode.into_iter())
             .collect(),
         ip_db,
+        cloud_provider_db,
         &registry,
     )?;
 

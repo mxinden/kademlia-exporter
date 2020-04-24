@@ -1,3 +1,4 @@
+use crate::cloud_provider_db;
 use client::Client;
 use futures::prelude::*;
 use futures_timer::Delay;
@@ -31,6 +32,7 @@ pub(crate) struct Exporter {
     clients: HashMap<String, Client>,
     node_stores: HashMap<String, NodeStore>,
     ip_db: Option<Reader<Vec<u8>>>,
+    cloud_provider_db: Option<cloud_provider_db::Db>,
     /// Set of in-flight random peer id lookups.
     ///
     /// When a lookup returns the entry is dropped and thus the duratation is
@@ -47,6 +49,7 @@ impl Exporter {
     pub(crate) fn new(
         dhts: Vec<(String, Multiaddr)>,
         ip_db: Option<Reader<Vec<u8>>>,
+        cloud_provider_db: Option<cloud_provider_db::Db>,
         registry: &Registry,
     ) -> Result<Self, Box<dyn Error>> {
         let metrics = Metrics::register(registry);
@@ -76,6 +79,7 @@ impl Exporter {
             clients,
             metrics,
             ip_db,
+            cloud_provider_db,
             node_stores,
 
             tick: futures_timer::Delay::new(TICK_INTERVAL),
@@ -234,6 +238,10 @@ impl Exporter {
                     if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
                         node = node.with_country(country);
                     }
+                    if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter())
+                    {
+                        node = node.with_cloud_provider(provider);
+                    }
                     self.node_stores.get_mut(&name).unwrap().observed_node(node);
 
                     self.metrics
@@ -249,6 +257,33 @@ impl Exporter {
                 }
             },
         }
+    }
+
+    fn multiaddresses_to_cloud_provider<'a>(
+        &self,
+        addresses: impl Iterator<Item = &'a Multiaddr>,
+    ) -> Option<String> {
+        for address in addresses {
+            let provider = self.multiaddress_to_cloud_provider(address);
+            if provider.is_some() {
+                return provider;
+            }
+        }
+
+        None
+    }
+
+    fn multiaddress_to_cloud_provider(&self, address: &Multiaddr) -> Option<String> {
+        let ip_address = match address.iter().next()? {
+            Protocol::Ip4(addr) => Some(addr),
+            _ => None,
+        }?;
+
+        if let Some(db) = &self.cloud_provider_db {
+            return db.get_provider(ip_address);
+        }
+
+        None
     }
 
     fn multiaddresses_to_country_code<'a>(

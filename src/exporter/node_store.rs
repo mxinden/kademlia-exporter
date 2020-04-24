@@ -56,36 +56,41 @@ impl NodeStore {
         // Seen within
         //
 
-        let mut nodes_by_time_by_country = HashMap::<Duration, HashMap<String, u64>>::new();
+        let mut nodes_by_time_by_country_and_provider =
+            HashMap::<Duration, HashMap<(String, String), u64>>::new();
 
         // Insert 3h, 6h, ... buckets.
         for factor in &[3, 6, 12, 24] {
-            nodes_by_time_by_country.insert(Duration::from_secs(60 * 60 * *factor), HashMap::new());
+            nodes_by_time_by_country_and_provider
+                .insert(Duration::from_secs(60 * 60 * *factor), HashMap::new());
         }
 
         for node in self.nodes.values() {
             let since_last_seen = now - node.last_seen;
-            for (time_barrier, countries) in &mut nodes_by_time_by_country {
+            for (time_barrier, countries) in &mut nodes_by_time_by_country_and_provider {
                 if since_last_seen < *time_barrier {
                     countries
-                        .entry(
+                        .entry((
                             node.country
                                 .clone()
                                 .unwrap_or_else(|| "unknown".to_string()),
-                        )
+                            node.provider
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_string()),
+                        ))
                         .and_modify(|v| *v += 1)
                         .or_insert(1);
                 }
             }
         }
 
-        for (time_barrier, countries) in nodes_by_time_by_country {
+        for (time_barrier, countries) in nodes_by_time_by_country_and_provider {
             let last_seen_within = format!("{:?}h", time_barrier.as_secs() / 60 / 60);
 
-            for (country, count) in countries {
+            for ((country, provider), count) in countries {
                 self.metrics
                     .nodes_seen_within
-                    .with_label_values(&[&self.dht, &country, &last_seen_within])
+                    .with_label_values(&[&self.dht, &country, &provider, &last_seen_within])
                     .set(count as f64);
             }
         }
@@ -94,18 +99,20 @@ impl NodeStore {
         // Up since
         //
 
-        let mut nodes_by_time_by_country = HashMap::<Duration, HashMap<String, u64>>::new();
+        let mut nodes_by_time_by_country_and_provider =
+            HashMap::<Duration, HashMap<(String, String), u64>>::new();
 
         // Insert 3h, 6h, ... buckets.
         for factor in &[3, 6, 12, 24, 48, 96] {
-            nodes_by_time_by_country.insert(Duration::from_secs(60 * 60 * *factor), HashMap::new());
+            nodes_by_time_by_country_and_provider
+                .insert(Duration::from_secs(60 * 60 * *factor), HashMap::new());
         }
 
         for node in self.nodes.values() {
             // Safeguard in case exporter is behind on probing every nodes
             // uptime.
             if Instant::now() - node.last_seen > Duration::from_secs(60 * 60) {
-                continue
+                continue;
             }
 
             let up_since = match node.up_since {
@@ -113,27 +120,30 @@ impl NodeStore {
                 None => continue,
             };
 
-            for (time_barrier, countries) in &mut nodes_by_time_by_country {
+            for (time_barrier, countries) in &mut nodes_by_time_by_country_and_provider {
                 if Instant::now() - up_since > *time_barrier {
                     countries
-                        .entry(
+                        .entry((
                             node.country
                                 .clone()
                                 .unwrap_or_else(|| "unknown".to_string()),
-                        )
+                            node.provider
+                                .clone()
+                                .unwrap_or_else(|| "unknown".to_string()),
+                        ))
                         .and_modify(|v| *v += 1)
                         .or_insert(1);
                 }
             }
         }
 
-        for (time_barrier, countries) in nodes_by_time_by_country {
+        for (time_barrier, countries) in nodes_by_time_by_country_and_provider {
             let up_since = format!("{:?}h", time_barrier.as_secs() / 60 / 60);
 
-            for (country, count) in countries {
+            for ((country, provider), count) in countries {
                 self.metrics
                     .nodes_up_since
-                    .with_label_values(&[&self.dht, &country, &up_since])
+                    .with_label_values(&[&self.dht, &country, &provider, &up_since])
                     .set(count as f64);
             }
         }
@@ -151,6 +161,7 @@ impl NodeStore {
 pub struct Node {
     pub peer_id: PeerId,
     pub country: Option<String>,
+    pub provider: Option<String>,
     last_seen: Instant,
     up_since: Option<Instant>,
 }
@@ -160,6 +171,7 @@ impl Node {
         Node {
             peer_id,
             country: None,
+            provider: None,
             last_seen: Instant::now(),
             up_since: Some(Instant::now()),
         }
@@ -167,6 +179,11 @@ impl Node {
 
     pub fn with_country(mut self, country: String) -> Self {
         self.country = Some(country);
+        self
+    }
+
+    pub fn with_cloud_provider(mut self, provider: String) -> Self {
+        self.provider = Some(provider);
         self
     }
 
@@ -195,7 +212,7 @@ impl Metrics {
                 "nodes_seen_within",
                 "Unique nodes discovered within the time bound through the Dht.",
             ),
-            &["dht", "country", "last_seen_within"],
+            &["dht", "country", "cloud_provider", "last_seen_within"],
         )
         .unwrap();
         registry
@@ -207,7 +224,7 @@ impl Metrics {
                 "nodes_up_since",
                 "Unique nodes discovered through the Dht and up since timebound.",
             ),
-            &["dht", "country", "up_since"],
+            &["dht", "country", "cloud_provider", "up_since"],
         )
         .unwrap();
         registry.register(Box::new(nodes_up_since.clone())).unwrap();
