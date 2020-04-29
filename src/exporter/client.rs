@@ -32,12 +32,12 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(mut bootnode: Multiaddr) -> Result<Client, Box<dyn Error>> {
+    pub fn new(mut bootnode: Multiaddr, use_disjoint_paths: bool) -> Result<Client, Box<dyn Error>> {
         // Create a random key for ourselves.
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
 
-        let behaviour = MyBehaviour::new(local_key.clone())?;
+        let behaviour = MyBehaviour::new(local_key.clone(), use_disjoint_paths)?;
         let transport = build_transport(local_key);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
             .incoming_connection_limit(10)
@@ -111,7 +111,7 @@ pub enum Event {
 }
 
 impl MyBehaviour {
-    fn new(local_key: Keypair) -> Result<Self, Box<dyn Error>> {
+    fn new(local_key: Keypair, use_disjoint_paths: bool) -> Result<Self, Box<dyn Error>> {
         let local_peer_id = PeerId::from(local_key.public());
 
         // Create a Kademlia behaviour.
@@ -124,6 +124,9 @@ impl MyBehaviour {
         // Request to PeerId("") in query QueryId(0) failed with Io(Custom {
         // kind: PermissionDenied, error: "len > max" })`
         kademlia_config.set_max_packet_size(8000);
+        if use_disjoint_paths {
+            kademlia_config.use_disjoint_path_queries();
+        }
         let kademlia = Kademlia::with_config(local_peer_id, store, kademlia_config);
 
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));

@@ -47,7 +47,7 @@ pub(crate) struct Exporter {
 
 impl Exporter {
     pub(crate) fn new(
-        dhts: Vec<(String, Multiaddr)>,
+        dhts: Vec<(String, Multiaddr, bool)>,
         ip_db: Option<Reader<Vec<u8>>>,
         cloud_provider_db: Option<cloud_provider_db::Db>,
         registry: &Registry,
@@ -57,14 +57,16 @@ impl Exporter {
         let clients = dhts
             .clone()
             .into_iter()
-            .map(|(name, bootnode)| (name, client::Client::new(bootnode).unwrap()))
+            .map(|(name, bootnode, disjoint_paths)| {
+                (name, client::Client::new(bootnode, disjoint_paths).unwrap())
+            })
             .collect();
 
         let node_store_metrics = node_store::Metrics::register(registry);
         let node_stores = dhts
             .clone()
             .into_iter()
-            .map(|(name, _)| {
+            .map(|(name, _, _)| {
                 (
                     name.clone(),
                     NodeStore::new(name, node_store_metrics.clone()),
@@ -73,7 +75,7 @@ impl Exporter {
             .collect();
 
         let nodes_to_probe_periodically =
-            dhts.into_iter().map(|(name, _)| (name, vec![])).collect();
+            dhts.into_iter().map(|(name, _, _)| (name, vec![])).collect();
 
         Ok(Exporter {
             clients,

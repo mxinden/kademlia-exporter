@@ -23,6 +23,8 @@ struct Opt {
     dht_name: Vec<String>,
     #[structopt(long)]
     dht_bootnode: Vec<Multiaddr>,
+    #[structopt(long)]
+    dht_use_disjoint_paths: Vec<bool>,
 
     #[structopt(long)]
     max_mind_db: Option<PathBuf>,
@@ -59,6 +61,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         opt.dht_name
             .into_iter()
             .zip(opt.dht_bootnode.into_iter())
+            .zip(opt.dht_use_disjoint_paths.into_iter())
+            .map(|((name, bootnode), disjoint)| (name, bootnode, disjoint))
             .collect(),
         ip_db,
         cloud_provider_db,
