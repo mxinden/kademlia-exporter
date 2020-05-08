@@ -54,7 +54,7 @@ impl Client {
         };
 
         swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
-        swarm.kademlia.bootstrap();
+        swarm.kademlia.bootstrap().unwrap();
 
         Ok(Client {
             swarm,
@@ -71,7 +71,6 @@ impl Client {
     }
 }
 
-// TODO: this should be a stream instead.
 impl Stream for Client {
     type Item = Event;
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
@@ -184,7 +183,9 @@ fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Err
     let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
     let transport = dns::DnsConfig::new(global_only_tcp).unwrap();
 
-    let noise_keypair = noise::Keypair::new().into_authentic(&keypair).unwrap();
+    let noise_keypair = noise::Keypair::<noise::X25519>::new()
+        .into_authentic(&keypair)
+        .unwrap();
     let noise_config = noise::NoiseConfig::ix(noise_keypair);
     let secio_config = secio::SecioConfig::new(keypair).max_frame_len(1024 * 1024);
 
