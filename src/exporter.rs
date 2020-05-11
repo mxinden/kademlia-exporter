@@ -255,14 +255,16 @@ impl Exporter {
                     .kad_query_stats
                     .with_label_values(&[&name, query_name, "num_failures"])
                     .observe(stats.num_failures().into());
-                // self.metrics
-                //     .kad_query_stats
-                //     .with_label_values(&[&name, query_name, "num_pending"])
-                //     .observe(stats.pending().into());
                 self.metrics
                     .kad_query_stats
-                    .with_label_values(&[&name, query_name, "duration"])
-                    .observe(stats.duration().as_secs_f64());
+                    .with_label_values(&[&name, query_name, "num_pending"])
+                    .observe(stats.num_pending().into());
+                if let Some(duration) = stats.duration() {
+                    self.metrics
+                        .kad_query_stats
+                        .with_label_values(&[&name, query_name, "duration"])
+                        .observe(duration.as_secs_f64());
+                }
             },
             // Note: Do not interpret Discovered event as a proof of a node
             // being online.
