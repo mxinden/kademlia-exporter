@@ -1,7 +1,6 @@
 #![feature(ip)]
 
 use async_std::task;
-use libp2p::core::Multiaddr;
 use prometheus::{Encoder, Registry, TextEncoder};
 use std::{
     error::Error,
@@ -11,6 +10,7 @@ use std::{
 use structopt::StructOpt;
 
 mod cloud_provider_db;
+mod config;
 mod exporter;
 
 #[derive(Debug, StructOpt)]
@@ -20,25 +20,14 @@ mod exporter;
 )]
 struct Opt {
     #[structopt(long)]
-    dht_name: Vec<String>,
-    #[structopt(long)]
-    dht_bootnode: Vec<Multiaddr>,
-    #[structopt(long)]
-    dht_use_disjoint_paths: Vec<bool>,
-
-    #[structopt(long)]
-    max_mind_db: Option<PathBuf>,
-    #[structopt(long)]
-    cloud_provider_db: Option<PathBuf>,
+    config_file: PathBuf,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let opt = Opt::from_args();
-    if opt.dht_name.len() != opt.dht_bootnode.len() {
-        panic!("Expected equal amount of bootnode and name arguments.");
-    }
-
     env_logger::init();
+
+    let opt = Opt::from_args();
+    let config = config::Config::from_file(opt.config_file);
 
     let (signal, exit) = exit_future::signal();
     let signal = Arc::new(Mutex::new(Some(signal)));
@@ -51,23 +40,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     .unwrap();
 
     let registry = Registry::new_custom(Some("kademlia_exporter".to_string()), None).unwrap();
-    let ip_db = opt
-        .max_mind_db
+    let ip_db = config
+        .max_mind_db_path
         .map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
-    let cloud_provider_db = opt
-        .cloud_provider_db
+    let cloud_provider_db = config
+        .cloud_provider_cidr_db_path
         .map(|path| cloud_provider_db::Db::new(path).expect("Failed to parse cloud provider db."));
-    let exporter = exporter::Exporter::new(
-        opt.dht_name
-            .into_iter()
-            .zip(opt.dht_bootnode.into_iter())
-            .zip(opt.dht_use_disjoint_paths.into_iter())
-            .map(|((name, bootnode), disjoint)| (name, bootnode, disjoint))
-            .collect(),
-        ip_db,
-        cloud_provider_db,
-        &registry,
-    )?;
+    let exporter = exporter::Exporter::new(config.dhts, ip_db, cloud_provider_db, &registry)?;
 
     let exit_clone = exit.clone();
     let metrics_server = std::thread::spawn(move || {

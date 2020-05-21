@@ -1,9 +1,9 @@
+use crate::config::DhtConfig;
 use futures::prelude::*;
 use libp2p::{
     core::{
-        self, connection::ConnectionLimit, either::EitherError, either::EitherOutput,
-        multiaddr::Protocol, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport,
-        upgrade, Multiaddr,
+        self, either::EitherError, either::EitherOutput, multiaddr::Protocol,
+        muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, upgrade,
     },
     dns,
     identify::{Identify, IdentifyEvent},
@@ -12,7 +12,10 @@ use libp2p::{
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     secio,
-    swarm::{NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters, SwarmBuilder},
+    swarm::{
+        DialError, NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters,
+        SwarmBuilder,
+    },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
 use std::{
@@ -32,12 +35,16 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(mut bootnode: Multiaddr, use_disjoint_paths: bool) -> Result<Client, Box<dyn Error>> {
+    pub fn new(config: DhtConfig) -> Result<Client, Box<dyn Error>> {
         // Create a random key for ourselves.
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
 
-        let behaviour = MyBehaviour::new(local_key.clone(), use_disjoint_paths)?;
+        let behaviour = MyBehaviour::new(
+            local_key.clone(),
+            config.use_disjoint_paths,
+            config.protocol_name,
+        )?;
         let transport = build_transport(local_key);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
             .incoming_connection_limit(10)
@@ -47,14 +54,16 @@ impl Client {
         // Listen on all interfaces and whatever port the OS assigns.
         Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-        let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
-            PeerId::from_multihash(hash).unwrap()
-        } else {
-            panic!("expected peer id");
-        };
+        for mut bootnode in config.bootnodes {
+            let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
+                PeerId::from_multihash(hash).unwrap()
+            } else {
+                panic!("expected peer id");
+            };
+            swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
+        }
 
-        swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
-        swarm.kademlia.bootstrap();
+        swarm.kademlia.bootstrap().unwrap();
 
         Ok(Client {
             swarm,
@@ -66,12 +75,11 @@ impl Client {
         self.swarm.kademlia.get_closest_peers(peer_id);
     }
 
-    pub fn dial(&mut self, peer_id: &PeerId) -> Result<bool, ConnectionLimit> {
+    pub fn dial(&mut self, peer_id: &PeerId) -> Result<(), DialError> {
         Swarm::dial(&mut self.swarm, peer_id)
     }
 }
 
-// TODO: this should be a stream instead.
 impl Stream for Client {
     type Item = Event;
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
@@ -111,7 +119,11 @@ pub enum Event {
 }
 
 impl MyBehaviour {
-    fn new(local_key: Keypair, use_disjoint_paths: bool) -> Result<Self, Box<dyn Error>> {
+    fn new(
+        local_key: Keypair,
+        use_disjoint_paths: bool,
+        protocol_name: Option<String>,
+    ) -> Result<Self, Box<dyn Error>> {
         let local_peer_id = PeerId::from(local_key.public());
 
         // Create a Kademlia behaviour.
@@ -124,6 +136,9 @@ impl MyBehaviour {
         // Request to PeerId("") in query QueryId(0) failed with Io(Custom {
         // kind: PermissionDenied, error: "len > max" })`
         kademlia_config.set_max_packet_size(8000);
+        if let Some(protocol_name) = protocol_name {
+            kademlia_config.set_protocol_name(protocol_name.into_bytes());
+        }
         if use_disjoint_paths {
             kademlia_config.use_disjoint_path_queries();
         }
@@ -143,6 +158,7 @@ impl MyBehaviour {
             event_buffer: Vec::new(),
         })
     }
+
     fn poll<TEv>(
         &mut self,
         _: &mut Context,
@@ -184,7 +200,9 @@ fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Err
     let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
     let transport = dns::DnsConfig::new(global_only_tcp).unwrap();
 
-    let noise_keypair = noise::Keypair::new().into_authentic(&keypair).unwrap();
+    let noise_keypair = noise::Keypair::<noise::X25519>::new()
+        .into_authentic(&keypair)
+        .unwrap();
     let noise_config = noise::NoiseConfig::ix(noise_keypair);
     let secio_config = secio::SecioConfig::new(keypair).max_frame_len(1024 * 1024);
 

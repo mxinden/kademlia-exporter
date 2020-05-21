@@ -1,10 +1,10 @@
-use crate::cloud_provider_db;
+use crate::{cloud_provider_db, config::DhtConfig};
 use client::Client;
 use futures::prelude::*;
 use futures_timer::Delay;
 use libp2p::{
     identify::IdentifyEvent,
-    kad::{GetClosestPeersOk, KademliaEvent},
+    kad::{GetClosestPeersOk, KademliaEvent, QueryResult},
     multiaddr::{Multiaddr, Protocol},
     ping::{PingEvent, PingSuccess},
     PeerId,
@@ -47,7 +47,7 @@ pub(crate) struct Exporter {
 
 impl Exporter {
     pub(crate) fn new(
-        dhts: Vec<(String, Multiaddr, bool)>,
+        dhts: Vec<DhtConfig>,
         ip_db: Option<Reader<Vec<u8>>>,
         cloud_provider_db: Option<cloud_provider_db::Db>,
         registry: &Registry,
@@ -57,16 +57,14 @@ impl Exporter {
         let clients = dhts
             .clone()
             .into_iter()
-            .map(|(name, bootnode, disjoint_paths)| {
-                (name, client::Client::new(bootnode, disjoint_paths).unwrap())
-            })
+            .map(|config| (config.name.clone(), client::Client::new(config).unwrap()))
             .collect();
 
         let node_store_metrics = node_store::Metrics::register(registry);
         let node_stores = dhts
             .clone()
             .into_iter()
-            .map(|(name, _, _)| {
+            .map(|DhtConfig { name, .. }| {
                 (
                     name.clone(),
                     NodeStore::new(name, node_store_metrics.clone()),
@@ -74,8 +72,10 @@ impl Exporter {
             })
             .collect();
 
-        let nodes_to_probe_periodically =
-            dhts.into_iter().map(|(name, _, _)| (name, vec![])).collect();
+        let nodes_to_probe_periodically = dhts
+            .into_iter()
+            .map(|DhtConfig { name, .. }| (name, vec![]))
+            .collect();
 
         Ok(Exporter {
             clients,
@@ -93,7 +93,6 @@ impl Exporter {
 
     fn record_event(&mut self, name: String, event: client::Event) {
         match event {
-            // TODO: We could also expose the ping latency.
             client::Event::Ping(PingEvent { peer, result }) => {
                 // Update node store.
                 match result {
@@ -162,102 +161,142 @@ impl Exporter {
                         .inc();
                 }
             },
-            client::Event::Kademlia(event) => match *event {
-                KademliaEvent::BootstrapResult(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "bootstrap"])
-                        .inc();
-                }
-                KademliaEvent::GetClosestPeersResult(res) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "get_closest_peers"])
-                        .inc();
+            client::Event::Kademlia(event) => self.record_kademlia_event(name, *event),
+        }
+    }
 
-                    // Record lookup latency.
-                    let result_label = if res.is_ok() { "ok" } else { "error" };
-                    let peer_id = PeerId::from_bytes(match res {
-                        Ok(GetClosestPeersOk { key, .. }) => key,
-                        Err(err) => err.into_key(),
-                    })
-                    .unwrap();
-                    let duration =
-                        Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
+    fn record_kademlia_event(&mut self, name: String, event: KademliaEvent) {
+        match event {
+            KademliaEvent::QueryResult { result, stats, .. } => {
+                let query_name;
+
+                match result {
+                    QueryResult::Bootstrap(_) => {
+                        query_name = "bootstrap";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+                    }
+                    QueryResult::GetClosestPeers(res) => {
+                        query_name = "get_closest_peers";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+
+                        // Record lookup latency.
+                        let result_label = if res.is_ok() { "ok" } else { "error" };
+                        let peer_id = PeerId::from_bytes(match res {
+                            Ok(GetClosestPeersOk { key, .. }) => key,
+                            Err(err) => err.into_key(),
+                        })
+                        .unwrap();
+                        let duration =
+                            Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
+                        self.metrics
+                            .kad_random_node_lookup_duration
+                            .with_label_values(&[&name, result_label])
+                            .observe(duration.as_secs_f64());
+                    }
+                    QueryResult::GetProviders(_) => {
+                        query_name = "get_providers";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+                    }
+                    QueryResult::StartProviding(_) => {
+                        query_name = "start_providing";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+                    }
+                    QueryResult::RepublishProvider(_) => {
+                        query_name = "republish_provider";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+                    }
+                    QueryResult::GetRecord(_) => {
+                        query_name = "get_record";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+                    }
+                    QueryResult::PutRecord(_) => {
+                        query_name = "put_record";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+                    }
+                    QueryResult::RepublishRecord(_) => {
+                        query_name = "republish_record";
+                        self.metrics
+                            .event_counter
+                            .with_label_values(&[&name, "kad", query_name])
+                            .inc();
+                    }
+                }
+
+                self.metrics
+                    .kad_query_stats
+                    .with_label_values(&[&name, query_name, "num_requests"])
+                    .observe(stats.num_requests().into());
+                self.metrics
+                    .kad_query_stats
+                    .with_label_values(&[&name, query_name, "num_successes"])
+                    .observe(stats.num_successes().into());
+                self.metrics
+                    .kad_query_stats
+                    .with_label_values(&[&name, query_name, "num_failures"])
+                    .observe(stats.num_failures().into());
+                self.metrics
+                    .kad_query_stats
+                    .with_label_values(&[&name, query_name, "num_pending"])
+                    .observe(stats.num_pending().into());
+                if let Some(duration) = stats.duration() {
                     self.metrics
-                        .random_node_lookup_duration
-                        .with_label_values(&[&name, result_label])
+                        .kad_query_stats
+                        .with_label_values(&[&name, query_name, "duration"])
                         .observe(duration.as_secs_f64());
                 }
-                KademliaEvent::GetProvidersResult(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "get_providers"])
-                        .inc();
+            }
+            // Note: Do not interpret Discovered event as a proof of a node
+            // being online.
+            KademliaEvent::Discovered { .. } => {
+                self.metrics
+                    .event_counter
+                    .with_label_values(&[&name, "kad", "discovered"])
+                    .inc();
+            }
+            KademliaEvent::RoutingUpdated {
+                peer, addresses, ..
+            } => {
+                let mut node = Node::new(peer);
+                if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
+                    node = node.with_country(country);
                 }
-                KademliaEvent::StartProvidingResult(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "start_providing"])
-                        .inc();
+                if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter()) {
+                    node = node.with_cloud_provider(provider);
                 }
-                KademliaEvent::RepublishProviderResult(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "republish_provider"])
-                        .inc();
-                }
-                KademliaEvent::GetRecordResult(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "get_record"])
-                        .inc();
-                }
-                KademliaEvent::PutRecordResult(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "put_record"])
-                        .inc();
-                }
-                KademliaEvent::RepublishRecordResult(_) => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "republish_record"])
-                        .inc();
-                }
-                // Note: Do not interpret Discovered event as a proof of a node
-                // being online.
-                KademliaEvent::Discovered { .. } => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "discovered"])
-                        .inc();
-                }
-                KademliaEvent::RoutingUpdated {
-                    peer, addresses, ..
-                } => {
-                    let mut node = Node::new(peer);
-                    if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
-                        node = node.with_country(country);
-                    }
-                    if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter())
-                    {
-                        node = node.with_cloud_provider(provider);
-                    }
-                    self.node_stores.get_mut(&name).unwrap().observed_node(node);
+                self.node_stores.get_mut(&name).unwrap().observed_node(node);
 
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "routing_updated"])
-                        .inc();
-                }
-                KademliaEvent::UnroutablePeer { .. } => {
-                    self.metrics
-                        .event_counter
-                        .with_label_values(&[&name, "kad", "unroutable_peer"])
-                        .inc();
-                }
-            },
+                self.metrics
+                    .event_counter
+                    .with_label_values(&[&name, "kad", "routing_updated"])
+                    .inc();
+            }
+            KademliaEvent::UnroutablePeer { .. } => {
+                self.metrics
+                    .event_counter
+                    .with_label_values(&[&name, "kad", "unroutable_peer"])
+                    .inc();
+            }
         }
     }
 
@@ -395,7 +434,8 @@ struct Metrics {
     event_counter: CounterVec,
 
     ping_duration: HistogramVec,
-    random_node_lookup_duration: HistogramVec,
+    kad_random_node_lookup_duration: HistogramVec,
+    kad_query_stats: HistogramVec,
 
     meta_random_node_lookup_triggered: CounterVec,
 }
@@ -412,17 +452,30 @@ impl Metrics {
         .unwrap();
         registry.register(Box::new(event_counter.clone())).unwrap();
 
-        let random_node_lookup_duration = HistogramVec::new(
+        let kad_random_node_lookup_duration = HistogramVec::new(
             HistogramOpts::new(
-                "random_node_lookup_duration",
-                "Duration of random node lookup.",
+                "kad_random_node_lookup_duration",
+                "Duration of random Kademlia node lookup.",
             )
             .buckets(exponential_buckets(0.1, 2.0, 10).unwrap()),
             &["dht", "result"],
         )
         .unwrap();
         registry
-            .register(Box::new(random_node_lookup_duration.clone()))
+            .register(Box::new(kad_random_node_lookup_duration.clone()))
+            .unwrap();
+
+        let kad_query_stats = HistogramVec::new(
+            HistogramOpts::new(
+                "kad_query_stats",
+                "Kademlia query statistics (number of requests, successes, failures and duration).",
+            )
+            .buckets(exponential_buckets(1.0, 2.0, 10).unwrap()),
+            &["dht", "query", "stat"],
+        )
+        .unwrap();
+        registry
+            .register(Box::new(kad_query_stats.clone()))
             .unwrap();
 
         let ping_duration = HistogramVec::new(
@@ -448,7 +501,8 @@ impl Metrics {
             event_counter,
 
             ping_duration,
-            random_node_lookup_duration,
+            kad_random_node_lookup_duration,
+            kad_query_stats,
 
             meta_random_node_lookup_triggered,
         }
