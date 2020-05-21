@@ -23,6 +23,9 @@ ctrlc = "3"
 structopt = "0.3"
 futures-timer = "3"
 maxminddb = "*"
+serde = "1.0"
+serde_derive = "1.0"
+toml = "0.5.6"
 
 # [patch."https://github.com/mxinden/rust-libp2p"]
 # libp2p = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p" }

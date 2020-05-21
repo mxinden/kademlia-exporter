@@ -32,7 +32,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(mut bootnode: Multiaddr, use_disjoint_paths: bool) -> Result<Client, Box<dyn Error>> {
+    pub fn new(bootnodes: Vec<Multiaddr>, use_disjoint_paths: bool) -> Result<Client, Box<dyn Error>> {
         // Create a random key for ourselves.
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -47,13 +47,15 @@ impl Client {
         // Listen on all interfaces and whatever port the OS assigns.
         Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-        let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
-            PeerId::from_multihash(hash).unwrap()
-        } else {
-            panic!("expected peer id");
-        };
+        for mut bootnode in bootnodes {
+            let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
+                PeerId::from_multihash(hash).unwrap()
+            } else {
+                panic!("expected peer id");
+            };
+            swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
+        }
 
-        swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
         swarm.kademlia.bootstrap().unwrap();
 
         Ok(Client {

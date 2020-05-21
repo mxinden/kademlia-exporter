@@ -1,0 +1,22 @@
+max_mind_db_path = "/home/mxinden/Downloads/GeoLite2-City_20200407/GeoLite2-City.mmdb"
+cloud_provider_cidr_db_path = "/home/mxinden/code/github.com/mxinden/kademlia-exporter/.assets/cidrs.csv"
+
+[[dhts]]
+name = "kusama"
+bootnodes = ["/dns4/p2p.cc3-5.kusama.network/tcp/30100/p2p/QmdePe9MiAJT4yHT2tEwmazCsckAZb19uaoSUgRDffPq3G"]
+use_disjoint_paths = false
+
+[[dhts]]
+name = "kusama-disjoint"
+bootnodes = ["/dns4/p2p.cc3-5.kusama.network/tcp/30100/p2p/QmdePe9MiAJT4yHT2tEwmazCsckAZb19uaoSUgRDffPq3G"]
+use_disjoint_paths = true
+
+[[dhts]]
+name = "ipfs"
+bootnodes = ["/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ"]
+use_disjoint_paths = false
+
+[[dhts]]
+name = "edgeware"
+bootnodes = ["/ip4/107.191.48.39/tcp/30333/p2p/QmdFq4WXvgokUi5MAcGvzcV4PZmo6fZN2fxcEbcPQioGcK"]
+use_disjoint_paths = false
