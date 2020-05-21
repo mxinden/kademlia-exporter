@@ -46,12 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cloud_provider_db = config
         .cloud_provider_cidr_db_path
         .map(|path| cloud_provider_db::Db::new(path).expect("Failed to parse cloud provider db."));
-    let exporter = exporter::Exporter::new(
-        config.dhts,
-        ip_db,
-        cloud_provider_db,
-        &registry,
-    )?;
+    let exporter = exporter::Exporter::new(config.dhts, ip_db, cloud_provider_db, &registry)?;
 
     let exit_clone = exit.clone();
     let metrics_server = std::thread::spawn(move || {

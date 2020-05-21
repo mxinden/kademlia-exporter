@@ -1,9 +1,9 @@
+use crate::config::DhtConfig;
 use futures::prelude::*;
 use libp2p::{
     core::{
-        self, either::EitherError, either::EitherOutput,
-        multiaddr::Protocol, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport,
-        upgrade,
+        self, either::EitherError, either::EitherOutput, multiaddr::Protocol,
+        muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, upgrade,
     },
     dns,
     identify::{Identify, IdentifyEvent},
@@ -12,7 +12,10 @@ use libp2p::{
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     secio,
-    swarm::{DialError, NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters, SwarmBuilder},
+    swarm::{
+        DialError, NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters,
+        SwarmBuilder,
+    },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
 use std::{
@@ -23,7 +26,6 @@ use std::{
     time::Duration,
     usize,
 };
-use crate::config::DhtConfig;
 
 mod global_only;
 
@@ -38,7 +40,11 @@ impl Client {
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
 
-        let behaviour = MyBehaviour::new(local_key.clone(), config.use_disjoint_paths, config.protocol_name)?;
+        let behaviour = MyBehaviour::new(
+            local_key.clone(),
+            config.use_disjoint_paths,
+            config.protocol_name,
+        )?;
         let transport = build_transport(local_key);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
             .incoming_connection_limit(10)
@@ -113,7 +119,11 @@ pub enum Event {
 }
 
 impl MyBehaviour {
-    fn new(local_key: Keypair, use_disjoint_paths: bool, protocol_name: Option<String>) -> Result<Self, Box<dyn Error>> {
+    fn new(
+        local_key: Keypair,
+        use_disjoint_paths: bool,
+        protocol_name: Option<String>,
+    ) -> Result<Self, Box<dyn Error>> {
         let local_peer_id = PeerId::from(local_key.public());
 
         // Create a Kademlia behaviour.

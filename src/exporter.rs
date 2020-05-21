@@ -57,16 +57,14 @@ impl Exporter {
         let clients = dhts
             .clone()
             .into_iter()
-            .map(|config| {
-                (config.name.clone(), client::Client::new(config).unwrap())
-            })
+            .map(|config| (config.name.clone(), client::Client::new(config).unwrap()))
             .collect();
 
         let node_store_metrics = node_store::Metrics::register(registry);
         let node_stores = dhts
             .clone()
             .into_iter()
-            .map(|DhtConfig{name, ..}| {
+            .map(|DhtConfig { name, .. }| {
                 (
                     name.clone(),
                     NodeStore::new(name, node_store_metrics.clone()),
@@ -74,8 +72,10 @@ impl Exporter {
             })
             .collect();
 
-        let nodes_to_probe_periodically =
-            dhts.into_iter().map(|DhtConfig{name, .. }| (name, vec![])).collect();
+        let nodes_to_probe_periodically = dhts
+            .into_iter()
+            .map(|DhtConfig { name, .. }| (name, vec![]))
+            .collect();
 
         Ok(Exporter {
             clients,
@@ -167,7 +167,7 @@ impl Exporter {
 
     fn record_kademlia_event(&mut self, name: String, event: KademliaEvent) {
         match event {
-            KademliaEvent::QueryResult{ result, stats, .. } => {
+            KademliaEvent::QueryResult { result, stats, .. } => {
                 let query_name;
 
                 match result {
@@ -191,7 +191,7 @@ impl Exporter {
                             Ok(GetClosestPeersOk { key, .. }) => key,
                             Err(err) => err.into_key(),
                         })
-                            .unwrap();
+                        .unwrap();
                         let duration =
                             Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
                         self.metrics
@@ -265,7 +265,7 @@ impl Exporter {
                         .with_label_values(&[&name, query_name, "duration"])
                         .observe(duration.as_secs_f64());
                 }
-            },
+            }
             // Note: Do not interpret Discovered event as a proof of a node
             // being online.
             KademliaEvent::Discovered { .. } => {
@@ -281,8 +281,7 @@ impl Exporter {
                 if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
                     node = node.with_country(country);
                 }
-                if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter())
-                {
+                if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter()) {
                     node = node.with_cloud_provider(provider);
                 }
                 self.node_stores.get_mut(&name).unwrap().observed_node(node);
@@ -471,10 +470,10 @@ impl Metrics {
                 "kad_query_stats",
                 "Kademlia query statistics (number of requests, successes, failures and duration).",
             )
-                .buckets(exponential_buckets(1.0, 2.0, 10).unwrap()),
+            .buckets(exponential_buckets(1.0, 2.0, 10).unwrap()),
             &["dht", "query", "stat"],
         )
-            .unwrap();
+        .unwrap();
         registry
             .register(Box::new(kad_query_stats.clone()))
             .unwrap();
