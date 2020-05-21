@@ -1,5 +1,5 @@
-max_mind_db_path = "/home/mxinden/Downloads/GeoLite2-City_20200407/GeoLite2-City.mmdb"
-cloud_provider_cidr_db_path = "/home/mxinden/code/github.com/mxinden/kademlia-exporter/.assets/cidrs.csv"
+# max_mind_db_path = "<path to GeoLite2-City.mmdb>"
+# cloud_provider_cidr_db_path = "<path to cidrs.csv>"
 
 [[dhts]]
 name = "kusama"
