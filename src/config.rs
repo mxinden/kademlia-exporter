@@ -21,4 +21,5 @@ pub struct DhtConfig {
     pub name: String,
     pub bootnodes: Vec<Multiaddr>,
     pub use_disjoint_paths: bool,
+    pub protocol_name: Option<String>,
 }

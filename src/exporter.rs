@@ -57,8 +57,8 @@ impl Exporter {
         let clients = dhts
             .clone()
             .into_iter()
-            .map(|DhtConfig{name, bootnodes, use_disjoint_paths}| {
-                (name, client::Client::new(bootnodes, use_disjoint_paths).unwrap())
+            .map(|config| {
+                (config.name.clone(), client::Client::new(config).unwrap())
             })
             .collect();
 
