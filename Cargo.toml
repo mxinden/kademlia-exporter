@@ -12,8 +12,8 @@ cidr = "0.1"
 csv = "1"
 env_logger = "0.7.1"
 futures = "0.3.1"
-libp2p = { git = "https://github.com/mxinden/rust-libp2p", branch = "disjoint-paths-2-query-info" }
-libp2p-kad = { git = "https://github.com/mxinden/rust-libp2p", branch = "disjoint-paths-2-query-info" }
+libp2p = { git = "https://github.com/mxinden/rust-libp2p", branch = "disjoint-paths-2" }
+libp2p-kad = { git = "https://github.com/mxinden/rust-libp2p", branch = "disjoint-paths-2" }
 log = "0.4.1"
 prometheus = "0.7"
 void = "1.0.2"

@@ -1,9 +1,9 @@
 use futures::prelude::*;
 use libp2p::{
     core::{
-        self, connection::ConnectionLimit, either::EitherError, either::EitherOutput,
+        self, either::EitherError, either::EitherOutput,
         multiaddr::Protocol, muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport,
-        upgrade, Multiaddr,
+        upgrade,
     },
     dns,
     identify::{Identify, IdentifyEvent},
@@ -12,7 +12,7 @@ use libp2p::{
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     secio,
-    swarm::{NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters, SwarmBuilder},
+    swarm::{DialError, NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters, SwarmBuilder},
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
 use std::{
@@ -69,7 +69,7 @@ impl Client {
         self.swarm.kademlia.get_closest_peers(peer_id);
     }
 
-    pub fn dial(&mut self, peer_id: &PeerId) -> Result<bool, ConnectionLimit> {
+    pub fn dial(&mut self, peer_id: &PeerId) -> Result<(), DialError> {
         Swarm::dial(&mut self.swarm, peer_id)
     }
 }
