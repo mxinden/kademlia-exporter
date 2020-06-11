@@ -42,7 +42,7 @@ impl Client {
 
         let behaviour = MyBehaviour::new(
             local_key.clone(),
-            config.use_disjoint_paths,
+            config.disjoint_query_paths,
             config.protocol_name,
         )?;
         let transport = build_transport(local_key);
@@ -121,7 +121,7 @@ pub enum Event {
 impl MyBehaviour {
     fn new(
         local_key: Keypair,
-        use_disjoint_paths: bool,
+        disjoint_query_paths: bool,
         protocol_name: Option<String>,
     ) -> Result<Self, Box<dyn Error>> {
         let local_peer_id = PeerId::from(local_key.public());
@@ -139,8 +139,8 @@ impl MyBehaviour {
         if let Some(protocol_name) = protocol_name {
             kademlia_config.set_protocol_name(protocol_name.into_bytes());
         }
-        if use_disjoint_paths {
-            kademlia_config.use_disjoint_path_queries();
+        if disjoint_query_paths {
+            kademlia_config.disjoint_query_paths(true);
         }
         let kademlia = Kademlia::with_config(local_peer_id, store, kademlia_config);
 

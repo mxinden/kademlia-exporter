@@ -14,7 +14,7 @@ bootnodes = [
     "/dns4/kusama-bootnode-0.paritytech.net/tcp/30334/ws/p2p/QmTFUXWi98EADXdsUxvv7t9fhJG1XniRijahDXxdv1EbAW",
     "/dns4/kusama-bootnode-1.paritytech.net/tcp/30333/p2p/Qmf58BhdDSkHxGy1gX5YUuHCpdYYGACxQM3nGWa7xJa5an"
 ]
-use_disjoint_paths = false
+disjoint_query_paths = false
 protocol_name = "/ksmcc3/kad"
 
 [[dhts]]
@@ -30,15 +30,15 @@ bootnodes = [
     "/dns4/kusama-bootnode-0.paritytech.net/tcp/30334/ws/p2p/QmTFUXWi98EADXdsUxvv7t9fhJG1XniRijahDXxdv1EbAW",
     "/dns4/kusama-bootnode-1.paritytech.net/tcp/30333/p2p/Qmf58BhdDSkHxGy1gX5YUuHCpdYYGACxQM3nGWa7xJa5an"
 ]
-use_disjoint_paths = true
+disjoint_query_paths = true
 protocol_name = "/ksmcc3/kad"
 
 [[dhts]]
 name = "ipfs"
 bootnodes = ["/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ"]
-use_disjoint_paths = false
+disjoint_query_paths = false
 
 [[dhts]]
 name = "edgeware"
 bootnodes = ["/ip4/107.191.48.39/tcp/30333/p2p/QmdFq4WXvgokUi5MAcGvzcV4PZmo6fZN2fxcEbcPQioGcK"]
-use_disjoint_paths = false
+disjoint_query_paths = false
