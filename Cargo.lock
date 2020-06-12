@@ -114,22 +114,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-macros"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "644a5a8de80f2085a1e7e57cd1544a2a7438f6e003c0790999bd43b92a77cdb2"
-dependencies = [
- "futures-core",
- "pin-utils",
-]
-
-[[package]]
 name = "async-std"
-version = "1.2.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "513ee3c49800679a319912340f5601afda9e72848d7dea3a48bab489e8c1a46f"
+checksum = "538ecb01eb64eecd772087e5b6f7540cbc917f047727339a472dafed2185b267"
 dependencies = [
- "async-macros",
  "async-task",
  "broadcaster",
  "crossbeam-channel",
@@ -152,11 +141,12 @@ dependencies = [
 
 [[package]]
 name = "async-task"
-version = "1.0.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de6bd58f7b9cc49032559422595c81cbfcf04db2f2133592f70af19e258a1ced"
+checksum = "0ac2c016b079e771204030951c366db398864f5026f84a44dafb0ff20f02085d"
 dependencies = [
- "crossbeam-utils 0.6.6",
+ "libc",
+ "winapi 0.3.8",
 ]
 
 [[package]]
@@ -291,15 +281,15 @@ dependencies = [
 
 [[package]]
 name = "broadcaster"
-version = "0.2.6"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07a1446420a56f1030271649ba0da46d23239b3a68c73591cea5247f15a788a0"
+checksum = "d9c972e21e0d055a36cf73e4daae870941fe7a8abcd5ac3396aab9e4c126bd87"
 dependencies = [
- "futures-channel-preview",
- "futures-core-preview",
- "futures-sink-preview",
- "futures-util-preview",
- "parking_lot 0.9.0",
+ "futures-channel",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
+ "parking_lot 0.10.0",
  "slab",
 ]
 
@@ -803,26 +793,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures-channel-preview"
-version = "0.3.0-alpha.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5e5f4df964fa9c1c2f8bddeb5c3611631cacd93baf810fc8bb2fb4b495c263a"
-dependencies = [
- "futures-core-preview",
- "futures-sink-preview",
-]
-
-[[package]]
 name = "futures-core"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f25592f769825e89b92358db00d26f965761e094951ac44d3663ef25b7ac464a"
-
-[[package]]
-name = "futures-core-preview"
-version = "0.3.0-alpha.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b35b6263fb1ef523c3056565fa67b1d16f0a8604ff12b11b08c25f28a734c60a"
 
 [[package]]
 name = "futures-cpupool"
@@ -871,12 +845,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3466821b4bc114d95b087b850a724c6f83115e929bc88f1fa98a3304a944c8a6"
 
 [[package]]
-name = "futures-sink-preview"
-version = "0.3.0-alpha.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86f148ef6b69f75bb610d4f9a2336d4fc88c4b5b67129d1a340dd0fd362efeec"
-
-[[package]]
 name = "futures-task"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -913,18 +881,6 @@ dependencies = [
  "proc-macro-nested",
  "slab",
  "tokio-io",
-]
-
-[[package]]
-name = "futures-util-preview"
-version = "0.3.0-alpha.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ce968633c17e5f97936bd2797b6e38fb56cf16a7422319f7ec2e30d3c470e8d"
-dependencies = [
- "futures-core-preview",
- "futures-sink-preview",
- "pin-utils",
- "slab",
 ]
 
 [[package]]
@@ -1292,8 +1248,8 @@ checksum = "d515b1f41455adea1313a4a2ac8a8a477634fbae63cc6100e3aebb207ce61558"
 
 [[package]]
 name = "libp2p"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.4",
@@ -1329,8 +1285,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-core"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "asn1_der",
  "bs58",
@@ -1362,8 +1318,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-core-derive"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "quote",
  "syn",
@@ -1371,8 +1327,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-deflate"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "flate2",
  "futures 0.3.4",
@@ -1382,7 +1338,7 @@ dependencies = [
 [[package]]
 name = "libp2p-dns"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1392,7 +1348,7 @@ dependencies = [
 [[package]]
 name = "libp2p-floodsub"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "cuckoofilter",
  "fnv",
@@ -1407,8 +1363,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-gossipsub"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "base64",
  "byteorder 1.3.2",
@@ -1431,8 +1387,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identify"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1447,7 +1403,7 @@ dependencies = [
 [[package]]
 name = "libp2p-kad"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "arrayvec 0.5.1",
  "bytes 0.5.4",
@@ -1472,8 +1428,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mdns"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "async-std",
  "data-encoding",
@@ -1493,8 +1449,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mplex"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "bytes 0.5.4",
  "fnv",
@@ -1509,7 +1465,7 @@ dependencies = [
 [[package]]
 name = "libp2p-noise"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "curve25519-dalek 2.0.0",
  "futures 0.3.4",
@@ -1528,8 +1484,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-ping"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1543,7 +1499,7 @@ dependencies = [
 [[package]]
 name = "libp2p-plaintext"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.4",
@@ -1560,7 +1516,7 @@ dependencies = [
 [[package]]
 name = "libp2p-pnet"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "futures 0.3.4",
  "log",
@@ -1572,8 +1528,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-secio"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "aes-ctr",
  "ctr",
@@ -1602,7 +1558,7 @@ dependencies = [
 [[package]]
 name = "libp2p-swarm"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1615,8 +1571,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-tcp"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "async-std",
  "futures 0.3.4",
@@ -1630,8 +1586,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-uds"
-version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.19.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "async-std",
  "futures 0.3.4",
@@ -1642,7 +1598,7 @@ dependencies = [
 [[package]]
 name = "libp2p-wasm-ext"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "futures 0.3.4",
  "js-sys",
@@ -1655,7 +1611,7 @@ dependencies = [
 [[package]]
 name = "libp2p-websocket"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "async-tls",
  "bytes 0.5.4",
@@ -1675,7 +1631,7 @@ dependencies = [
 [[package]]
 name = "libp2p-yamux"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1763,9 +1719,9 @@ checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 
 [[package]]
 name = "memchr"
-version = "2.2.1"
+version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88579771288728879b57485cc7d6b07d648c9f0141eb955f8ab7f9d45394468e"
+checksum = "3728d817d99e5ac407411fa471ff9800a778d88a24685968b36824eaf4bee400"
 
 [[package]]
 name = "memoffset"
@@ -1856,8 +1812,8 @@ checksum = "d8883adfde9756c1d30b0f519c9b8c502a94b41ac62f696453c37c7fc0a958ce"
 
 [[package]]
 name = "multistream-select"
-version = "0.8.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+version = "0.8.1"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.4",
@@ -1938,7 +1894,7 @@ checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 [[package]]
 name = "parity-multiaddr"
 version = "0.9.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#3448f52b81df2d0345d7d1da7151ebacb275e4f3"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#80085c2d08aaa91d3c39370742382e536e6c2e6a"
 dependencies = [
  "arrayref",
  "bs58",
@@ -2032,18 +1988,18 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "0.4.8"
+version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7804a463a8d9572f13453c516a5faea534a2403d7ced2f0c7e100eeff072772c"
+checksum = "e75373ff9037d112bb19bc61333a06a159eaeb217660dcfbea7d88e1db823919"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "0.4.8"
+version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "385322a45f2ecf3410c68d2a549a4a2685e8051d0f278e39743ff4e451cb9b3f"
+checksum = "10b4b44893d3c370407a1d6a5cfde7c41ae0478e31c516c85f67eb3adc51be6d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2052,9 +2008,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.1.1"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0af6cbca0e6e3ce8692ee19fb8d734b641899e07b68eb73e9bbbd32f1703991"
+checksum = "282adbf10f2698a7a77f8e983a74b2d18176c19a7fd32a45446139ae7b02b715"
 
 [[package]]
 name = "pin-utils"
@@ -2119,9 +2075,9 @@ checksum = "369a6ed065f249a159e06c45752c780bda2fb53c995718f9e484d08daa9eb42e"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.6"
+version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c9e470a8dc4aeae2dee2f335e8f533e2d4b347e1434e5671afc49b054592f27"
+checksum = "beae6331a816b1f65d04c45b078fd8e6c93e8071771f41b8163255bbd8d7c8fa"
 dependencies = [
  "unicode-xid",
 ]
@@ -2807,9 +2763,9 @@ checksum = "7c65d530b10ccaeac294f349038a597e435b18fb456aadd0840a623f83b9e941"
 
 [[package]]
 name = "syn"
-version = "1.0.9"
+version = "1.0.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f89693ae015201f8de93fd96bde2d065f8bfc3f97ce006d5bc9f900b97c0c7c0"
+checksum = "b5304cfdf27365b7585c25d4af91b35016ed21ef88f17ced89c7093b43dba8b6"
 dependencies = [
  "proc-macro2",
  "quote",
