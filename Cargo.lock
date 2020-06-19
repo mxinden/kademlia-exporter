@@ -1281,7 +1281,7 @@ checksum = "d515b1f41455adea1313a4a2ac8a8a477634fbae63cc6100e3aebb207ce61558"
 [[package]]
 name = "libp2p"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.4",
@@ -1318,7 +1318,7 @@ dependencies = [
 [[package]]
 name = "libp2p-core"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "asn1_der",
  "bs58",
@@ -1351,7 +1351,7 @@ dependencies = [
 [[package]]
 name = "libp2p-core-derive"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "quote",
  "syn",
@@ -1360,7 +1360,7 @@ dependencies = [
 [[package]]
 name = "libp2p-deflate"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "flate2",
  "futures 0.3.4",
@@ -1370,7 +1370,7 @@ dependencies = [
 [[package]]
 name = "libp2p-dns"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1380,7 +1380,7 @@ dependencies = [
 [[package]]
 name = "libp2p-floodsub"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "cuckoofilter",
  "fnv",
@@ -1396,7 +1396,7 @@ dependencies = [
 [[package]]
 name = "libp2p-gossipsub"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "base64 0.11.0",
  "byteorder 1.3.2",
@@ -1420,7 +1420,7 @@ dependencies = [
 [[package]]
 name = "libp2p-identify"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1435,7 +1435,7 @@ dependencies = [
 [[package]]
 name = "libp2p-kad"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "arrayvec",
  "bytes 0.5.4",
@@ -1461,7 +1461,7 @@ dependencies = [
 [[package]]
 name = "libp2p-mdns"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "async-std",
  "data-encoding",
@@ -1482,7 +1482,7 @@ dependencies = [
 [[package]]
 name = "libp2p-mplex"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "bytes 0.5.4",
  "fnv",
@@ -1497,7 +1497,7 @@ dependencies = [
 [[package]]
 name = "libp2p-noise"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "curve25519-dalek",
  "futures 0.3.4",
@@ -1516,8 +1516,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-ping"
-version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+version = "0.19.2"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1531,7 +1531,7 @@ dependencies = [
 [[package]]
 name = "libp2p-plaintext"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.4",
@@ -1548,7 +1548,7 @@ dependencies = [
 [[package]]
 name = "libp2p-pnet"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "futures 0.3.4",
  "log",
@@ -1561,7 +1561,7 @@ dependencies = [
 [[package]]
 name = "libp2p-secio"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "aes-ctr",
  "ctr",
@@ -1590,7 +1590,7 @@ dependencies = [
 [[package]]
 name = "libp2p-swarm"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1604,7 +1604,7 @@ dependencies = [
 [[package]]
 name = "libp2p-tcp"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "async-std",
  "futures 0.3.4",
@@ -1619,7 +1619,7 @@ dependencies = [
 [[package]]
 name = "libp2p-uds"
 version = "0.19.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "async-std",
  "futures 0.3.4",
@@ -1630,7 +1630,7 @@ dependencies = [
 [[package]]
 name = "libp2p-wasm-ext"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "futures 0.3.4",
  "js-sys",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "libp2p-websocket"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "async-tls",
  "either",
@@ -1662,7 +1662,7 @@ dependencies = [
 [[package]]
 name = "libp2p-yamux"
 version = "0.19.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "futures 0.3.4",
  "libp2p-core",
@@ -1844,7 +1844,7 @@ checksum = "d8883adfde9756c1d30b0f519c9b8c502a94b41ac62f696453c37c7fc0a958ce"
 [[package]]
 name = "multistream-select"
 version = "0.8.1"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.4",
@@ -1919,7 +1919,7 @@ checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 [[package]]
 name = "parity-multiaddr"
 version = "0.9.0"
-source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#1232c55b9c27ca9f6679e67ed2aa4254e10449a6"
+source = "git+https://github.com/mxinden/rust-libp2p?branch=disjoint-paths-2#63be1f36b35af5b5e2411d906aaec735bb16fee9"
 dependencies = [
  "arrayref",
  "bs58",
