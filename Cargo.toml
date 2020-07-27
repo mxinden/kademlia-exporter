@@ -14,7 +14,7 @@ env_logger = "0.7.1"
 futures = "0.3.1"
 libp2p = { git = "https://github.com/mxinden/rust-libp2p", branch = "disjoint-paths-2" }
 libp2p-kad = { git = "https://github.com/mxinden/rust-libp2p", branch = "disjoint-paths-2" }
-log = "0.4.1"
+log = "0.4.11"
 prometheus = "0.9"
 void = "1.0.2"
 tide = "0.6"
