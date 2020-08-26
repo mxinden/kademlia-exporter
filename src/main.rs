@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let metric_families = req.state().gather();
                 encoder.encode(&metric_families, &mut buffer).unwrap();
 
-                String::from_utf8(buffer).unwrap()
+                Ok(String::from_utf8(buffer).unwrap())
             });
         let endpoint = app.listen("0.0.0.0:8080");
         futures::pin_mut!(endpoint);

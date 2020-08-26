@@ -273,8 +273,7 @@ impl Exporter {
                     .inc();
 
                 self.observe_with_address(name, peer, vec![address]);
-                
-            },
+            }
             KademliaEvent::PendingRoutablePeer { peer, address } => {
                 self.metrics
                     .event_counter
@@ -282,7 +281,7 @@ impl Exporter {
                     .inc();
 
                 self.observe_with_address(name, peer, vec![address]);
-            },
+            }
             KademliaEvent::RoutingUpdated {
                 peer, addresses, ..
             } => {
@@ -362,11 +361,14 @@ impl Exporter {
         }?;
 
         if let Some(ip_db) = &self.ip_db {
-            return ip_db
-                .lookup::<geoip2::City>(ip_address)
-                .ok()?
-                .country?
-                .iso_code;
+            return Some(
+                ip_db
+                    .lookup::<geoip2::City>(ip_address)
+                    .ok()?
+                    .country?
+                    .iso_code?
+                    .to_string(),
+            );
         }
 
         None
