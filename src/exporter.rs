@@ -266,30 +266,32 @@ impl Exporter {
                         .observe(duration.as_secs_f64());
                 }
             }
-            // Note: Do not interpret Discovered event as a proof of a node
-            // being online.
-            KademliaEvent::Discovered { .. } => {
+            KademliaEvent::RoutablePeer { peer, address } => {
                 self.metrics
                     .event_counter
-                    .with_label_values(&[&name, "kad", "discovered"])
+                    .with_label_values(&[&name, "kad", "routable_peer"])
                     .inc();
-            }
+
+                self.observe_with_address(name, peer, vec![address]);
+                
+            },
+            KademliaEvent::PendingRoutablePeer { peer, address } => {
+                self.metrics
+                    .event_counter
+                    .with_label_values(&[&name, "kad", "pending_routable_peer"])
+                    .inc();
+
+                self.observe_with_address(name, peer, vec![address]);
+            },
             KademliaEvent::RoutingUpdated {
                 peer, addresses, ..
             } => {
-                let mut node = Node::new(peer);
-                if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
-                    node = node.with_country(country);
-                }
-                if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter()) {
-                    node = node.with_cloud_provider(provider);
-                }
-                self.node_stores.get_mut(&name).unwrap().observed_node(node);
-
                 self.metrics
                     .event_counter
                     .with_label_values(&[&name, "kad", "routing_updated"])
                     .inc();
+
+                self.observe_with_address(name, peer, addresses.into_vec());
             }
             KademliaEvent::UnroutablePeer { .. } => {
                 self.metrics
@@ -298,6 +300,17 @@ impl Exporter {
                     .inc();
             }
         }
+    }
+
+    fn observe_with_address(&mut self, name: String, peer: PeerId, addresses: Vec<Multiaddr>) {
+        let mut node = Node::new(peer);
+        if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
+            node = node.with_country(country);
+        }
+        if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter()) {
+            node = node.with_cloud_provider(provider);
+        }
+        self.node_stores.get_mut(&name).unwrap().observed_node(node);
     }
 
     fn multiaddresses_to_cloud_provider<'a>(
