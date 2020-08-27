@@ -47,8 +47,8 @@ impl Client {
         )?;
         let transport = build_transport(local_key);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
-            .incoming_connection_limit(10)
-            .outgoing_connection_limit(10)
+            .incoming_connection_limit(100)
+            .outgoing_connection_limit(100)
             .build();
 
         // Listen on all interfaces and whatever port the OS assigns.
