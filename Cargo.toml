@@ -14,7 +14,7 @@ env_logger = "0.7.1"
 futures = "0.3.5"
 libp2p = { version = "0.24.0", default-features = false, features = ["dns", "noise", "tcp-async-std", "yamux", "identify", "kad", "ping", "secio", "mplex"] }
 log = "0.4.11"
-prometheus = "0.10.0-rc.1"
+prometheus = "0.10.0"
 void = "1.0.2"
 tide = "0.13.0"
 exit-future = "0.2.0"
