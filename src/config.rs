@@ -22,4 +22,5 @@ pub struct DhtConfig {
     pub bootnodes: Vec<Multiaddr>,
     pub disjoint_query_paths: bool,
     pub protocol_name: Option<String>,
+    pub noise_legacy: bool,
 }

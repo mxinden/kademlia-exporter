@@ -45,7 +45,7 @@ impl Client {
             config.disjoint_query_paths,
             config.protocol_name,
         )?;
-        let transport = build_transport(local_key);
+        let transport = build_transport(local_key, config.noise_legacy);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
             .incoming_connection_limit(100)
             .outgoing_connection_limit(100)
@@ -192,7 +192,7 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour {
     }
 }
 
-fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Error> {
+fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, StreamMuxerBox), impl Error> {
     let tcp = tcp::TcpConfig::new().nodelay(true);
     // Ignore any non global IP addresses. Given the amount of private IP
     // addresses in most Dhts dialing private IP addresses can easily be (and
@@ -200,15 +200,8 @@ fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Err
     let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
     let transport = dns::DnsConfig::new(global_only_tcp).unwrap();
 
-    // Legacy noise configurations for backward compatibility.
-    let mut noise_legacy = noise::LegacyConfig::default();
-    noise_legacy.send_legacy_handshake = true;
-
     // Build configuration objects for encryption mechanisms.
     let noise_config = {
-        // For more information about these two panics, see in "On the Importance of
-        // Checking Cryptographic Protocols for Faults" by Dan Boneh, Richard A. DeMillo,
-        // and Richard J. Lipton.
         let noise_keypair_legacy = noise::Keypair::<noise::X25519>::new().into_authentic(&keypair)
             .expect("can only fail in case of a hardware bug; since this signing is performed only \
                      once and at initialization, we're taking the bet that the inconvenience of a very \
@@ -219,9 +212,16 @@ fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Err
                      rare panic here is basically zero");
 
         let mut xx_config = noise::NoiseConfig::xx(noise_keypair_spec);
-        xx_config.set_legacy_config(noise_legacy.clone());
         let mut ix_config = noise::NoiseConfig::ix(noise_keypair_legacy);
-        ix_config.set_legacy_config(noise_legacy);
+        if noise_legacy {
+            // Legacy noise configurations for backward compatibility.
+            let mut legacy_config = noise::LegacyConfig::default();
+            legacy_config.send_legacy_handshake = true;
+            legacy_config.recv_legacy_handshake = true;
+
+            xx_config.set_legacy_config(legacy_config.clone());
+            ix_config.set_legacy_config(legacy_config);
+        }
 
         core::upgrade::SelectUpgrade::new(xx_config, ix_config)
     };

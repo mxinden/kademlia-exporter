@@ -16,6 +16,7 @@ bootnodes = [
 ]
 disjoint_query_paths = false
 protocol_name = "/ksmcc3/kad"
+noise_legacy = true
 
 [[dhts]]
 name = "kusama-disjoint"
@@ -32,13 +33,16 @@ bootnodes = [
 ]
 disjoint_query_paths = true
 protocol_name = "/ksmcc3/kad"
+noise_legacy = true
 
 [[dhts]]
 name = "ipfs"
 bootnodes = ["/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ"]
 disjoint_query_paths = false
+noise_legacy = false
 
 [[dhts]]
 name = "edgeware"
 bootnodes = ["/ip4/107.191.48.39/tcp/30333/p2p/QmdFq4WXvgokUi5MAcGvzcV4PZmo6fZN2fxcEbcPQioGcK"]
 disjoint_query_paths = false
+noise_legacy = true
