@@ -2,8 +2,8 @@ use crate::config::DhtConfig;
 use futures::prelude::*;
 use libp2p::{
     core::{
-        self, multiaddr::Protocol,
-        muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, upgrade,
+        self, multiaddr::Protocol, muxing::StreamMuxerBox, transport::boxed::Boxed,
+        transport::Transport, upgrade,
     },
     dns,
     identify::{Identify, IdentifyEvent},
@@ -205,21 +205,15 @@ fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Err
     let noise_config = noise::NoiseConfig::ix(noise_keypair);
 
     let transport = transport.and_then(move |stream, endpoint| {
-        core::upgrade::apply(stream, noise_config, endpoint, upgrade::Version::V1).map(
-            |out| {
-                let (remote_id, out) = out?;
+        core::upgrade::apply(stream, noise_config, endpoint, upgrade::Version::V1).map(|out| {
+            let (remote_id, out) = out?;
 
-                let remote_key = match remote_id {
-                    noise::RemoteIdentity::IdentityKey(key) => key,
-                    _ => {
-                        return Err(upgrade::UpgradeError::Apply(
-                            noise::NoiseError::InvalidKey,
-                        ))
-                    }
-                };
-                Ok((out, remote_key.into_peer_id()))
-            },
-        )
+            let remote_key = match remote_id {
+                noise::RemoteIdentity::IdentityKey(key) => key,
+                _ => return Err(upgrade::UpgradeError::Apply(noise::NoiseError::InvalidKey)),
+            };
+            Ok((out, remote_key.into_peer_id()))
+        })
     });
 
     let mut mplex_config = mplex::MplexConfig::new();
