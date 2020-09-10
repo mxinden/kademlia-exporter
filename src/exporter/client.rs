@@ -2,7 +2,7 @@ use crate::config::DhtConfig;
 use futures::prelude::*;
 use libp2p::{
     core::{
-        self, either::EitherError, either::EitherOutput, multiaddr::Protocol,
+        self, multiaddr::Protocol,
         muxing::StreamMuxerBox, transport::boxed::Boxed, transport::Transport, upgrade,
     },
     dns,
@@ -11,7 +11,6 @@ use libp2p::{
     kad::{record::store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent},
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
-    secio,
     swarm::{
         DialError, NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters,
         SwarmBuilder,
@@ -204,28 +203,21 @@ fn build_transport(keypair: Keypair) -> Boxed<(PeerId, StreamMuxerBox), impl Err
         .into_authentic(&keypair)
         .unwrap();
     let noise_config = noise::NoiseConfig::ix(noise_keypair);
-    let secio_config = secio::SecioConfig::new(keypair).max_frame_len(1024 * 1024);
 
     let transport = transport.and_then(move |stream, endpoint| {
-        let upgrade = core::upgrade::SelectUpgrade::new(noise_config, secio_config);
-        core::upgrade::apply(stream, upgrade, endpoint, upgrade::Version::V1).map(
-            |out| match out? {
-                // We negotiated noise
-                EitherOutput::First((remote_id, out)) => {
-                    let remote_key = match remote_id {
-                        noise::RemoteIdentity::IdentityKey(key) => key,
-                        _ => {
-                            return Err(upgrade::UpgradeError::Apply(EitherError::A(
-                                noise::NoiseError::InvalidKey,
-                            )))
-                        }
-                    };
-                    Ok((EitherOutput::First(out), remote_key.into_peer_id()))
-                }
-                // We negotiated secio
-                EitherOutput::Second((remote_id, out)) => {
-                    Ok((EitherOutput::Second(out), remote_id))
-                }
+        core::upgrade::apply(stream, noise_config, endpoint, upgrade::Version::V1).map(
+            |out| {
+                let (remote_id, out) = out?;
+
+                let remote_key = match remote_id {
+                    noise::RemoteIdentity::IdentityKey(key) => key,
+                    _ => {
+                        return Err(upgrade::UpgradeError::Apply(
+                            noise::NoiseError::InvalidKey,
+                        ))
+                    }
+                };
+                Ok((out, remote_key.into_peer_id()))
             },
         )
     });
