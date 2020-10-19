@@ -42,7 +42,7 @@ impl NodeStore {
         // Remove old offline nodes.
         let length = self.nodes.len();
         self.nodes
-            .retain(|_, n| (Instant::now() - n.last_seen) < Duration::from_secs(60 * 60 * 24));
+            .retain(|_, n| (Instant::now() - n.last_seen) < Duration::from_secs(60 * 60 * 12));
         self.metrics
             .meta_offline_nodes_removed
             .with_label_values(&[&self.dht])
@@ -60,7 +60,7 @@ impl NodeStore {
             HashMap::<Duration, HashMap<(String, String), u64>>::new();
 
         // Insert 3h, 6h, ... buckets.
-        for factor in &[3, 6, 12, 24] {
+        for factor in &[3, 6, 12] {
             nodes_by_time_by_country_and_provider
                 .insert(Duration::from_secs(60 * 60 * *factor), HashMap::new());
         }
@@ -232,7 +232,7 @@ impl Metrics {
         let meta_offline_nodes_removed = CounterVec::new(
             Opts::new(
                 "meta_offline_nodes_removed",
-                "Number of nodes removed due to being offline longer than 24h.",
+                "Number of nodes removed due to being offline longer than 12h.",
             ),
             &["dht"],
         )
