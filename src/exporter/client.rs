@@ -2,8 +2,8 @@ use crate::config::DhtConfig;
 use futures::prelude::*;
 use libp2p::{
     core::{
-        either::{EitherError, EitherOutput},
-        self, multiaddr::Protocol, muxing::StreamMuxerBox, transport::boxed::Boxed,
+        either::EitherOutput,
+        self, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed,
         transport::Transport, upgrade,
     },
     dns,
@@ -192,7 +192,7 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour {
     }
 }
 
-fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, StreamMuxerBox), impl Error> {
+fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, StreamMuxerBox)> {
     let tcp = tcp::TcpConfig::new().nodelay(true);
     // Ignore any non global IP addresses. Given the amount of private IP
     // addresses in most Dhts dialing private IP addresses can easily be (and
@@ -200,8 +200,7 @@ fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, Strea
     let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
     let transport = dns::DnsConfig::new(global_only_tcp).unwrap();
 
-    // Build configuration objects for encryption mechanisms.
-    let noise_config = {
+    let authentication_config = {
         let noise_keypair_legacy = noise::Keypair::<noise::X25519>::new().into_authentic(&keypair)
             .expect("can only fail in case of a hardware bug; since this signing is performed only \
                      once and at initialization, we're taking the bet that the inconvenience of a very \
@@ -213,60 +212,45 @@ fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, Strea
 
         let mut xx_config = noise::NoiseConfig::xx(noise_keypair_spec);
         let mut ix_config = noise::NoiseConfig::ix(noise_keypair_legacy);
+
         if noise_legacy {
             // Legacy noise configurations for backward compatibility.
-            let mut legacy_config = noise::LegacyConfig::default();
-            legacy_config.send_legacy_handshake = true;
-            legacy_config.recv_legacy_handshake = true;
+            let mut noise_legacy = noise::LegacyConfig::default();
+            noise_legacy.recv_legacy_handshake = true;
 
-            xx_config.set_legacy_config(legacy_config.clone());
-            ix_config.set_legacy_config(legacy_config);
+            xx_config.set_legacy_config(noise_legacy.clone());
+            ix_config.set_legacy_config(noise_legacy);
         }
 
-        core::upgrade::SelectUpgrade::new(xx_config, ix_config)
-    };
+        let extract_peer_id = |result| match result {
+            EitherOutput::First((peer_id, o)) => (peer_id, EitherOutput::First(o)),
+            EitherOutput::Second((peer_id, o)) => (peer_id, EitherOutput::Second(o)),
+        };
 
-    // Encryption
-    let transport = transport.and_then(move |stream, endpoint| {
-        core::upgrade::apply(stream, noise_config, endpoint, upgrade::Version::V1)
-            .map_err(|err|
-                     err.map_err(|err| match err {
-                         EitherError::A(err) => err,
-                         EitherError::B(err) => err,
-                     })
-            )
-            .and_then(|result| async move {
-                let remote_key = match &result {
-                    EitherOutput::First((noise::RemoteIdentity::IdentityKey(key), _)) => key.clone(),
-                    EitherOutput::Second((noise::RemoteIdentity::IdentityKey(key), _)) => key.clone(),
-                    _ => return Err(upgrade::UpgradeError::Apply(noise::NoiseError::InvalidKey))
-                };
-                let out = match result {
-                    EitherOutput::First((_, o)) => o,
-                    EitherOutput::Second((_, o)) => o,
-                };
-                Ok((out, remote_key.into_peer_id()))
-            })
-    });
+        core::upgrade::SelectUpgrade::new(xx_config.into_authenticated(), ix_config.into_authenticated())
+			      .map_inbound(extract_peer_id)
+			      .map_outbound(extract_peer_id)
+	  };
 
-    let mut mplex_config = mplex::MplexConfig::new();
-    mplex_config.max_buffer_len_behaviour(mplex::MaxBufferBehaviour::Block);
-    mplex_config.max_buffer_len(usize::MAX);
-    let mut yamux_config = libp2p::yamux::Config::default();
-    yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::OnRead);
+	  let multiplexing_config = {
+		    let mut mplex_config = mplex::MplexConfig::new();
+		    mplex_config.max_buffer_len_behaviour(mplex::MaxBufferBehaviour::Block);
+		    mplex_config.max_buffer_len(usize::MAX);
 
-    // Multiplexing
-    transport
-        .and_then(move |(stream, peer_id), endpoint| {
-            let peer_id2 = peer_id.clone();
-            let upgrade = core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
-                .map_inbound(move |muxer| (peer_id, muxer))
-                .map_outbound(move |muxer| (peer_id2, muxer));
+		    let mut yamux_config = yamux::Config::default();
+		    // Enable proper flow-control: window updates are only sent when
+		    // buffered data has been consumed.
+		    yamux_config.set_window_update_mode(yamux::WindowUpdateMode::OnRead);
 
-            core::upgrade::apply(stream, upgrade, endpoint, upgrade::Version::V1)
-                .map_ok(|(id, muxer)| (id, core::muxing::StreamMuxerBox::new(muxer)))
-        })
-        .timeout(Duration::from_secs(20))
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-        .boxed()
+		    core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
+			      .map_inbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
+			      .map_outbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
+	  };
+
+	  transport.upgrade(upgrade::Version::V1)
+		    .authenticate(authentication_config)
+		    .multiplex(multiplexing_config)
+		    .timeout(Duration::from_secs(20))
+		    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+		    .boxed()
 }
