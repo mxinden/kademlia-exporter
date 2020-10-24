@@ -12,7 +12,9 @@ use libp2p::{
 use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
-use prometheus::{exponential_buckets, CounterVec, HistogramOpts, HistogramVec, Opts, Registry};
+use prometheus::{
+    exponential_buckets, CounterVec, GaugeVec, HistogramOpts, HistogramVec, Opts, Registry,
+};
 use std::{
     collections::HashMap,
     error::Error,
@@ -430,6 +432,14 @@ impl Future for Exporter {
                 client.get_closest_peers(random_peer.clone());
                 this.in_flight_lookups.insert(random_peer, Instant::now());
             }
+
+            for (name, client) in this.clients.iter() {
+                let info = client.network_info();
+                this.metrics.meta_libp2p_network_info_num_peers.with_label_values(&[name]).set(info.num_peers as f64);
+                this.metrics.meta_libp2p_network_info_num_connections.with_label_values(&[name]).set(info.num_connections as f64);
+                this.metrics.meta_libp2p_network_info_num_connections_established.with_label_values(&[name]).set(info.num_connections_established as f64);
+                this.metrics.meta_libp2p_network_info_num_connections_pending.with_label_values(&[name]).set(info.num_connections_pending as f64);
+            }
         }
 
         let mut events = vec![];
@@ -461,6 +471,10 @@ struct Metrics {
 
     meta_random_node_lookup_triggered: CounterVec,
     meta_node_still_online_check_triggered: CounterVec,
+    meta_libp2p_network_info_num_peers: GaugeVec,
+    meta_libp2p_network_info_num_connections: GaugeVec,
+    meta_libp2p_network_info_num_connections_pending: GaugeVec,
+    meta_libp2p_network_info_num_connections_established: GaugeVec,
 }
 
 impl Metrics {
@@ -532,6 +546,54 @@ impl Metrics {
             .register(Box::new(meta_node_still_online_check_triggered.clone()))
             .unwrap();
 
+        let meta_libp2p_network_info_num_peers = GaugeVec::new(
+            Opts::new(
+                "meta_libp2p_network_info_num_peers",
+                "The total number of connected peers.",
+            ),
+            &["dht"],
+        )
+            .unwrap();
+        registry
+            .register(Box::new(meta_libp2p_network_info_num_peers.clone()))
+            .unwrap();
+
+        let meta_libp2p_network_info_num_connections = GaugeVec::new(
+            Opts::new(
+                "meta_libp2p_network_info_num_connections",
+                "The total number of connections, both established and pending.",
+            ),
+            &["dht"],
+        )
+            .unwrap();
+        registry
+            .register(Box::new(meta_libp2p_network_info_num_connections.clone()))
+            .unwrap();
+
+        let meta_libp2p_network_info_num_connections_pending = GaugeVec::new(
+            Opts::new(
+                "meta_libp2p_network_info_num_connections_pending",
+                "The total number of pending connections, both incoming and outgoing.",
+            ),
+            &["dht"],
+        )
+            .unwrap();
+        registry
+            .register(Box::new(meta_libp2p_network_info_num_connections_pending.clone()))
+            .unwrap();
+
+        let meta_libp2p_network_info_num_connections_established = GaugeVec::new(
+            Opts::new(
+                "meta_libp2p_network_info_num_connections_established",
+                "The total number of established connections.",
+            ),
+            &["dht"],
+        )
+            .unwrap();
+        registry
+            .register(Box::new(meta_libp2p_network_info_num_connections_established.clone()))
+            .unwrap();
+
         Metrics {
             event_counter,
 
@@ -541,6 +603,10 @@ impl Metrics {
 
             meta_random_node_lookup_triggered,
             meta_node_still_online_check_triggered,
+            meta_libp2p_network_info_num_peers,
+            meta_libp2p_network_info_num_connections,
+            meta_libp2p_network_info_num_connections_pending,
+            meta_libp2p_network_info_num_connections_established,
         }
     }
 }

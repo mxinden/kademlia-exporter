@@ -2,6 +2,7 @@ use crate::config::DhtConfig;
 use futures::prelude::*;
 use libp2p::{
     core::{
+        network::NetworkInfo,
         either::EitherOutput,
         self, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed,
         transport::Transport, upgrade,
@@ -82,6 +83,10 @@ impl Client {
         } else {
             Ok(false)
         }
+    }
+
+    pub fn network_info(&self) -> NetworkInfo {
+        Swarm::network_info(&self.swarm)
     }
 }
 
