@@ -387,14 +387,21 @@ impl Future for Exporter {
                 node_store.tick();
             }
 
-            // TODO: Introduce meta monitoring to find out how many nodes we actually check.
             for (dht, nodes) in &mut this.nodes_to_probe_periodically {
                 match nodes.pop() {
                     Some(peer_id) => {
                         info!("Checking if {:?} is still online.", &peer_id);
-                        if this.clients.get_mut(dht).unwrap().dial(&peer_id).is_err() {
+                        match this.clients.get_mut(dht).unwrap().dial(&peer_id) {
+                            // New connection was established.
+                            Ok(true) => this
+                                .metrics
+                                .meta_node_still_online_check_triggered
+                                .with_label_values(&[dht])
+                                .inc(),
+                            // Already connected to node.
+                            Ok(false) => {}
                             // Connection limit reached. Retry later.
-                            nodes.insert(0, peer_id);
+                            Err(_) => nodes.insert(0, peer_id),
                         }
                     }
                     // List is empty. Reconnected to every peer. Refill the
@@ -453,6 +460,7 @@ struct Metrics {
     kad_query_stats: HistogramVec,
 
     meta_random_node_lookup_triggered: CounterVec,
+    meta_node_still_online_check_triggered: CounterVec,
 }
 
 impl Metrics {
@@ -512,6 +520,18 @@ impl Metrics {
             .register(Box::new(meta_random_node_lookup_triggered.clone()))
             .unwrap();
 
+        let meta_node_still_online_check_triggered = CounterVec::new(
+            Opts::new(
+                "meta_node_still_online_check_triggered",
+                "Number of times a connection to a node was established to ensure it is still online.",
+            ),
+            &["dht"],
+        )
+            .unwrap();
+        registry
+            .register(Box::new(meta_node_still_online_check_triggered.clone()))
+            .unwrap();
+
         Metrics {
             event_counter,
 
@@ -520,6 +540,7 @@ impl Metrics {
             kad_query_stats,
 
             meta_random_node_lookup_triggered,
+            meta_node_still_online_check_triggered,
         }
     }
 }

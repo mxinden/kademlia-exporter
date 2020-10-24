@@ -75,8 +75,13 @@ impl Client {
         self.swarm.kademlia.get_closest_peers(peer_id);
     }
 
-    pub fn dial(&mut self, peer_id: &PeerId) -> Result<(), DialError> {
-        Swarm::dial(&mut self.swarm, peer_id)
+    pub fn dial(&mut self, peer_id: &PeerId) -> Result<bool, DialError> {
+        if Swarm::connection_info(&mut self.swarm, peer_id).is_none() {
+            Swarm::dial(&mut self.swarm, peer_id)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 
