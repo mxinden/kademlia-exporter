@@ -435,10 +435,22 @@ impl Future for Exporter {
 
             for (name, client) in this.clients.iter() {
                 let info = client.network_info();
-                this.metrics.meta_libp2p_network_info_num_peers.with_label_values(&[name]).set(info.num_peers as f64);
-                this.metrics.meta_libp2p_network_info_num_connections.with_label_values(&[name]).set(info.num_connections as f64);
-                this.metrics.meta_libp2p_network_info_num_connections_established.with_label_values(&[name]).set(info.num_connections_established as f64);
-                this.metrics.meta_libp2p_network_info_num_connections_pending.with_label_values(&[name]).set(info.num_connections_pending as f64);
+                this.metrics
+                    .meta_libp2p_network_info_num_peers
+                    .with_label_values(&[name])
+                    .set(info.num_peers as f64);
+                this.metrics
+                    .meta_libp2p_network_info_num_connections
+                    .with_label_values(&[name])
+                    .set(info.num_connections as f64);
+                this.metrics
+                    .meta_libp2p_network_info_num_connections_established
+                    .with_label_values(&[name])
+                    .set(info.num_connections_established as f64);
+                this.metrics
+                    .meta_libp2p_network_info_num_connections_pending
+                    .with_label_values(&[name])
+                    .set(info.num_connections_pending as f64);
             }
         }
 
@@ -553,7 +565,7 @@ impl Metrics {
             ),
             &["dht"],
         )
-            .unwrap();
+        .unwrap();
         registry
             .register(Box::new(meta_libp2p_network_info_num_peers.clone()))
             .unwrap();
@@ -565,7 +577,7 @@ impl Metrics {
             ),
             &["dht"],
         )
-            .unwrap();
+        .unwrap();
         registry
             .register(Box::new(meta_libp2p_network_info_num_connections.clone()))
             .unwrap();
@@ -577,9 +589,11 @@ impl Metrics {
             ),
             &["dht"],
         )
-            .unwrap();
+        .unwrap();
         registry
-            .register(Box::new(meta_libp2p_network_info_num_connections_pending.clone()))
+            .register(Box::new(
+                meta_libp2p_network_info_num_connections_pending.clone(),
+            ))
             .unwrap();
 
         let meta_libp2p_network_info_num_connections_established = GaugeVec::new(
@@ -589,9 +603,11 @@ impl Metrics {
             ),
             &["dht"],
         )
-            .unwrap();
+        .unwrap();
         registry
-            .register(Box::new(meta_libp2p_network_info_num_connections_established.clone()))
+            .register(Box::new(
+                meta_libp2p_network_info_num_connections_established.clone(),
+            ))
             .unwrap();
 
         Metrics {
