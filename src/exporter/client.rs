@@ -244,13 +244,13 @@ fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, Strea
 
 	  let multiplexing_config = {
 		    let mut mplex_config = mplex::MplexConfig::new();
-		    mplex_config.max_buffer_len_behaviour(mplex::MaxBufferBehaviour::Block);
-		    mplex_config.max_buffer_len(usize::MAX);
+		    mplex_config.set_max_buffer_behaviour(mplex::MaxBufferBehaviour::Block);
+		    mplex_config.set_max_buffer_size(usize::MAX);
 
-		    let mut yamux_config = yamux::Config::default();
+		    let mut yamux_config = yamux::YamuxConfig::default();
 		    // Enable proper flow-control: window updates are only sent when
 		    // buffered data has been consumed.
-		    yamux_config.set_window_update_mode(yamux::WindowUpdateMode::OnRead);
+		    yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
 
 		    core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
 			      .map_inbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
