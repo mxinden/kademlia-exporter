@@ -1513,9 +1513,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm"
-version = "0.25.0"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de333c483f27d02ecf7b6cef814a36f5e1876f15139eefb00225c405350e1c22"
+checksum = "a6ecee54e85513a7301eb4681b3a6aac5b6d11f60d43097cf7624fd4450d7dfe"
 dependencies = [
  "either",
  "futures",

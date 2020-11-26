@@ -48,8 +48,6 @@ impl Client {
         )?;
         let transport = build_transport(local_key, config.noise_legacy);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
-            .incoming_connection_limit(100)
-            .outgoing_connection_limit(100)
             .build();
 
         // Listen on all interfaces and whatever port the OS assigns.
@@ -77,7 +75,7 @@ impl Client {
     }
 
     pub fn dial(&mut self, peer_id: &PeerId) -> Result<bool, DialError> {
-        if Swarm::connection_info(&mut self.swarm, peer_id).is_none() {
+        if Swarm::is_connected(&mut self.swarm, peer_id) {
             Swarm::dial(&mut self.swarm, peer_id)?;
             Ok(true)
         } else {
