@@ -438,19 +438,19 @@ impl Future for Exporter {
                 this.metrics
                     .meta_libp2p_network_info_num_peers
                     .with_label_values(&[name])
-                    .set(info.num_peers as f64);
+                    .set(info.num_peers() as f64);
                 this.metrics
                     .meta_libp2p_network_info_num_connections
                     .with_label_values(&[name])
-                    .set(info.num_connections as f64);
+                    .set(info.connection_counters().num_connections() as f64);
                 this.metrics
                     .meta_libp2p_network_info_num_connections_established
                     .with_label_values(&[name])
-                    .set(info.num_connections_established as f64);
+                    .set(info.connection_counters().num_established() as f64);
                 this.metrics
                     .meta_libp2p_network_info_num_connections_pending
                     .with_label_values(&[name])
-                    .set(info.num_connections_pending as f64);
+                    .set(info.connection_counters().num_pending() as f64);
             }
         }
 
