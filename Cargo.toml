@@ -12,7 +12,7 @@ cidr = "0.1.1"
 csv = "1.1.4"
 env_logger = "0.8.2"
 futures = "0.3.8"
-libp2p = { version = "0.31.1", default-features = false, features = ["dns", "noise", "tcp-async-std", "yamux", "identify", "kad", "ping", "mplex"] }
+libp2p = { version = "0.31.2", default-features = false, features = ["dns", "noise", "tcp-async-std", "yamux", "identify", "kad", "ping", "mplex"] }
 log = "0.4.11"
 prometheus = "0.11.0"
 void = "1.0.2"
