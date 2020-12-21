@@ -189,10 +189,10 @@ impl Exporter {
 
                         // Record lookup latency.
                         let result_label = if res.is_ok() { "ok" } else { "error" };
-                        let peer_id = PeerId::from_bytes(match res {
-                            Ok(GetClosestPeersOk { key, .. }) => key,
-                            Err(err) => err.into_key(),
-                        })
+                        let peer_id = match res {
+                            Ok(GetClosestPeersOk { key, .. }) => PeerId::from_bytes(&key),
+                            Err(err) => PeerId::from_bytes(&err.into_key()),
+                        }
                         .unwrap();
                         let duration =
                             Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
