@@ -12,14 +12,20 @@ use libp2p::{
 use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
-use prometheus::{
-    exponential_buckets, CounterVec, GaugeVec, HistogramOpts, HistogramVec, Opts, Registry,
-};
+use open_metrics_client::counter::Counter;
+use open_metrics_client::encoding::text::Encode;
+use open_metrics_client::family::Family;
+use open_metrics_client::gauge::Gauge;
+use open_metrics_client::histogram::{exponential_series, Histogram};
+use open_metrics_client::registry::{Descriptor, DynSendRegistry};
 use std::{
     collections::HashMap,
+    convert::TryInto,
     error::Error,
+    io::Write,
     net::IpAddr,
     pin::Pin,
+    sync::atomic::AtomicU64,
     task::{Context, Poll},
     time::{Duration, Instant},
 };
@@ -52,7 +58,7 @@ impl Exporter {
         dhts: Vec<DhtConfig>,
         ip_db: Option<Reader<Vec<u8>>>,
         cloud_provider_db: Option<cloud_provider_db::Db>,
-        registry: &Registry,
+        registry: &mut DynSendRegistry,
     ) -> Result<Self, Box<dyn Error>> {
         let metrics = Metrics::register(registry);
 
@@ -124,7 +130,10 @@ impl Exporter {
                     Ok(PingSuccess::Ping { rtt }) => {
                         self.metrics
                             .ping_duration
-                            .with_label_values(&[&name, &country])
+                            .get_or_create(&vec![
+                                ("name".to_string(), name.clone()),
+                                ("country".to_string(), country.clone()),
+                            ])
                             .observe(rtt.as_secs_f64());
                         "received_pong"
                     }
@@ -135,20 +144,32 @@ impl Exporter {
 
                 self.metrics
                     .event_counter
-                    .with_label_values(&[&name, "ping", event])
+                    .get_or_create(&EventCounterLabels {
+                        dht: name.clone(),
+                        behaviour: BehaviourLabel::Ping,
+                        event: event.to_string(),
+                    })
                     .inc();
             }
             client::Event::Identify(event) => match *event {
                 IdentifyEvent::Error { .. } => {
                     self.metrics
                         .event_counter
-                        .with_label_values(&[&name, "identify", "error"])
+                        .get_or_create(&EventCounterLabels {
+                            dht: name.clone(),
+                            behaviour: BehaviourLabel::Identify,
+                            event: "error".to_string(),
+                        })
                         .inc();
                 }
                 IdentifyEvent::Sent { .. } => {
                     self.metrics
                         .event_counter
-                        .with_label_values(&[&name, "identify", "sent"])
+                        .get_or_create(&EventCounterLabels {
+                            dht: name.clone(),
+                            behaviour: BehaviourLabel::Identify,
+                            event: "sent".to_string(),
+                        })
                         .inc();
                 }
                 IdentifyEvent::Received { peer_id, .. } => {
@@ -159,7 +180,11 @@ impl Exporter {
 
                     self.metrics
                         .event_counter
-                        .with_label_values(&[&name, "identify", "received"])
+                        .get_or_create(&EventCounterLabels {
+                            dht: name.clone(),
+                            behaviour: BehaviourLabel::Identify,
+                            event: "received".to_string(),
+                        })
                         .inc();
                 }
             },
@@ -177,14 +202,22 @@ impl Exporter {
                         query_name = "bootstrap";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
                     }
                     QueryResult::GetClosestPeers(res) => {
                         query_name = "get_closest_peers";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
 
                         // Record lookup latency.
@@ -198,80 +231,131 @@ impl Exporter {
                             Instant::now() - self.in_flight_lookups.remove(&peer_id).unwrap();
                         self.metrics
                             .kad_random_node_lookup_duration
-                            .with_label_values(&[&name, result_label])
+                            .get_or_create(&vec![
+                                ("dht".to_string(), name.to_string()),
+                                ("result".to_string(), result_label.to_string()),
+                            ])
                             .observe(duration.as_secs_f64());
                     }
                     QueryResult::GetProviders(_) => {
                         query_name = "get_providers";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
                     }
                     QueryResult::StartProviding(_) => {
                         query_name = "start_providing";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
                     }
                     QueryResult::RepublishProvider(_) => {
                         query_name = "republish_provider";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
                     }
                     QueryResult::GetRecord(_) => {
                         query_name = "get_record";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
                     }
                     QueryResult::PutRecord(_) => {
                         query_name = "put_record";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
                     }
                     QueryResult::RepublishRecord(_) => {
                         query_name = "republish_record";
                         self.metrics
                             .event_counter
-                            .with_label_values(&[&name, "kad", query_name])
+                            .get_or_create(&EventCounterLabels {
+                                dht: name.clone(),
+                                behaviour: BehaviourLabel::Kad,
+                                event: query_name.to_string(),
+                            })
                             .inc();
                     }
                 }
 
                 self.metrics
                     .kad_query_stats
-                    .with_label_values(&[&name, query_name, "num_requests"])
+                    .get_or_create(&vec![
+                        ("dht".to_string(), name.clone()),
+                        ("query".to_string(), query_name.to_string()),
+                        ("stat".to_string(), "num_requests".to_string()),
+                    ])
                     .observe(stats.num_requests().into());
                 self.metrics
                     .kad_query_stats
-                    .with_label_values(&[&name, query_name, "num_successes"])
+                    .get_or_create(&vec![
+                        ("dht".to_string(), name.clone()),
+                        ("query".to_string(), query_name.to_string()),
+                        ("stat".to_string(), "num_successes".to_string()),
+                    ])
                     .observe(stats.num_successes().into());
                 self.metrics
                     .kad_query_stats
-                    .with_label_values(&[&name, query_name, "num_failures"])
+                    .get_or_create(&vec![
+                        ("dht".to_string(), name.clone()),
+                        ("query".to_string(), query_name.to_string()),
+                        ("stat".to_string(), "num_failures".to_string()),
+                    ])
                     .observe(stats.num_failures().into());
                 self.metrics
                     .kad_query_stats
-                    .with_label_values(&[&name, query_name, "num_pending"])
+                    .get_or_create(&vec![
+                        ("dht".to_string(), name.clone()),
+                        ("query".to_string(), query_name.to_string()),
+                        ("stat".to_string(), "num_pending".to_string()),
+                    ])
                     .observe(stats.num_pending().into());
                 if let Some(duration) = stats.duration() {
                     self.metrics
                         .kad_query_stats
-                        .with_label_values(&[&name, query_name, "duration"])
+                        .get_or_create(&vec![
+                            ("dht".to_string(), name.clone()),
+                            ("query".to_string(), query_name.to_string()),
+                            ("stat".to_string(), "duration".to_string()),
+                        ])
                         .observe(duration.as_secs_f64());
                 }
             }
             KademliaEvent::RoutablePeer { peer, address } => {
                 self.metrics
                     .event_counter
-                    .with_label_values(&[&name, "kad", "routable_peer"])
+                    .get_or_create(&EventCounterLabels {
+                        dht: name.clone(),
+                        behaviour: BehaviourLabel::Kad,
+                        event: "routable_peer".to_string(),
+                    })
                     .inc();
 
                 self.observe_with_address(name, peer, vec![address]);
@@ -279,7 +363,11 @@ impl Exporter {
             KademliaEvent::PendingRoutablePeer { peer, address } => {
                 self.metrics
                     .event_counter
-                    .with_label_values(&[&name, "kad", "pending_routable_peer"])
+                    .get_or_create(&EventCounterLabels {
+                        dht: name.clone(),
+                        behaviour: BehaviourLabel::Kad,
+                        event: "pending_routable_peer".to_string(),
+                    })
                     .inc();
 
                 self.observe_with_address(name, peer, vec![address]);
@@ -289,7 +377,11 @@ impl Exporter {
             } => {
                 self.metrics
                     .event_counter
-                    .with_label_values(&[&name, "kad", "routing_updated"])
+                    .get_or_create(&EventCounterLabels {
+                        dht: name.clone(),
+                        behaviour: BehaviourLabel::Kad,
+                        event: "routing_updated".to_string(),
+                    })
                     .inc();
 
                 self.observe_with_address(name, peer, addresses.into_vec());
@@ -297,7 +389,11 @@ impl Exporter {
             KademliaEvent::UnroutablePeer { .. } => {
                 self.metrics
                     .event_counter
-                    .with_label_values(&[&name, "kad", "unroutable_peer"])
+                    .get_or_create(&EventCounterLabels {
+                        dht: name.clone(),
+                        behaviour: BehaviourLabel::Kad,
+                        event: "unroutable_peer".to_string(),
+                    })
                     .inc();
             }
         }
@@ -395,11 +491,12 @@ impl Future for Exporter {
                         info!("Checking if {:?} is still online.", &peer_id);
                         match this.clients.get_mut(dht).unwrap().dial(&peer_id) {
                             // New connection was established.
-                            Ok(true) => this
-                                .metrics
-                                .meta_node_still_online_check_triggered
-                                .with_label_values(&[dht])
-                                .inc(),
+                            Ok(true) => {
+                                this.metrics
+                                    .meta_node_still_online_check_triggered
+                                    .get_or_create(&vec![("dht".to_string(), dht.clone())])
+                                    .inc();
+                            }
                             // Already connected to node.
                             Ok(false) => {}
                             // Connection limit reached. Retry later.
@@ -426,7 +523,7 @@ impl Future for Exporter {
             for (name, client) in this.clients.iter_mut() {
                 this.metrics
                     .meta_random_node_lookup_triggered
-                    .with_label_values(&[name])
+                    .get_or_create(&vec![("dht".to_string(), name.clone())])
                     .inc();
                 let random_peer = PeerId::random();
                 client.get_closest_peers(random_peer.clone());
@@ -437,20 +534,20 @@ impl Future for Exporter {
                 let info = client.network_info();
                 this.metrics
                     .meta_libp2p_network_info_num_peers
-                    .with_label_values(&[name])
-                    .set(info.num_peers() as f64);
+                    .get_or_create(&vec![("dht".to_string(), name.clone())])
+                    .set(info.num_peers().try_into().unwrap());
                 this.metrics
                     .meta_libp2p_network_info_num_connections
-                    .with_label_values(&[name])
-                    .set(info.connection_counters().num_connections() as f64);
+                    .get_or_create(&vec![("dht".to_string(), name.clone())])
+                    .set(info.connection_counters().num_connections().into());
                 this.metrics
                     .meta_libp2p_network_info_num_connections_established
-                    .with_label_values(&[name])
-                    .set(info.connection_counters().num_established() as f64);
+                    .get_or_create(&vec![("dht".to_string(), name.clone())])
+                    .set(info.connection_counters().num_established().into());
                 this.metrics
                     .meta_libp2p_network_info_num_connections_pending
-                    .with_label_values(&[name])
-                    .set(info.connection_counters().num_pending() as f64);
+                    .get_or_create(&vec![("dht".to_string(), name.clone())])
+                    .set(info.connection_counters().num_pending().into());
             }
         }
 
@@ -474,141 +571,182 @@ impl Future for Exporter {
     }
 }
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+struct EventCounterLabels {
+    // TODO: Could one not use Cow here as EventCounterLabels would be borrowed
+    // in most cases anyways?
+    dht: String,
+    behaviour: BehaviourLabel,
+    event: String,
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+enum BehaviourLabel {
+    Identify,
+    Ping,
+    Kad,
+}
+
+impl Encode for EventCounterLabels {
+    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
+        writer.write(b"dht")?;
+        writer.write(b"=\"")?;
+        writer.write(self.dht.as_bytes())?;
+        writer.write(b"\"")?;
+        writer.write(b",")?;
+
+        writer.write(b"behaviour")?;
+        writer.write(b"=\"")?;
+        let behaviour = match self.behaviour {
+            BehaviourLabel::Identify => "identify",
+            BehaviourLabel::Ping => "ping",
+            BehaviourLabel::Kad => "kad",
+        };
+        writer.write(behaviour.as_bytes())?;
+        writer.write(b"\"")?;
+        writer.write(b",")?;
+
+        writer.write(b"event")?;
+        writer.write(b"=\"")?;
+        writer.write(self.event.as_bytes())?;
+        writer.write(b"\"")?;
+
+        Ok(())
+    }
+}
+
 struct Metrics {
-    event_counter: CounterVec,
+    event_counter: Family<EventCounterLabels, Counter<AtomicU64>>,
 
-    ping_duration: HistogramVec,
-    kad_random_node_lookup_duration: HistogramVec,
-    kad_query_stats: HistogramVec,
+    ping_duration: Family<Vec<(String, String)>, Histogram>,
+    kad_random_node_lookup_duration: Family<Vec<(String, String)>, Histogram>,
+    kad_query_stats: Family<Vec<(String, String)>, Histogram>,
 
-    meta_random_node_lookup_triggered: CounterVec,
-    meta_node_still_online_check_triggered: CounterVec,
-    meta_libp2p_network_info_num_peers: GaugeVec,
-    meta_libp2p_network_info_num_connections: GaugeVec,
-    meta_libp2p_network_info_num_connections_pending: GaugeVec,
-    meta_libp2p_network_info_num_connections_established: GaugeVec,
+    meta_random_node_lookup_triggered: Family<Vec<(String, String)>, Counter<AtomicU64>>,
+    meta_node_still_online_check_triggered: Family<Vec<(String, String)>, Counter<AtomicU64>>,
+    meta_libp2p_network_info_num_peers: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
+    meta_libp2p_network_info_num_connections: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
+    meta_libp2p_network_info_num_connections_pending:
+        Family<Vec<(String, String)>, Gauge<AtomicU64>>,
+    meta_libp2p_network_info_num_connections_established:
+        Family<Vec<(String, String)>, Gauge<AtomicU64>>,
 }
 
 impl Metrics {
-    fn register(registry: &Registry) -> Metrics {
-        let event_counter = CounterVec::new(
-            Opts::new(
-                "network_behaviour_event",
+    fn register(registry: &mut DynSendRegistry) -> Metrics {
+        let event_counter = Family::new();
+        registry.register(
+            Descriptor::new(
+                "counter",
                 "Libp2p network behaviour events.",
+                "network_behaviour_event",
             ),
-            &["dht", "behaviour", "event"],
-        )
-        .unwrap();
-        registry.register(Box::new(event_counter.clone())).unwrap();
+            Box::new(event_counter.clone()),
+        );
 
-        let kad_random_node_lookup_duration = HistogramVec::new(
-            HistogramOpts::new(
-                "kad_random_node_lookup_duration",
+        let kad_random_node_lookup_duration =
+            Family::new_with_constructor(|| Histogram::new(exponential_series(0.1, 2.0, 10)));
+        registry.register(
+            Descriptor::new(
+                "histogram",
                 "Duration of random Kademlia node lookup.",
-            )
-            .buckets(exponential_buckets(0.1, 2.0, 10).unwrap()),
-            &["dht", "result"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(kad_random_node_lookup_duration.clone()))
-            .unwrap();
+                "kad_random_node_lookup_duration",
+            ),
+            Box::new(kad_random_node_lookup_duration.clone()),
+        );
+        // &["dht", "result"],
 
-        let kad_query_stats = HistogramVec::new(
-            HistogramOpts::new(
-                "kad_query_stats",
+        let kad_query_stats =
+            Family::new_with_constructor(|| Histogram::new(exponential_series(1.0, 2.0, 10)));
+        registry.register(
+            Descriptor::new(
+                "histogram",
                 "Kademlia query statistics (number of requests, successes, failures and duration).",
+                "kad_query_stats",
+            ),
+            Box::new(kad_query_stats.clone()),
+        );
+        // &["dht", "query", "stat"],
+
+        let ping_duration = Family::new_with_constructor(|| {
+            Histogram::new(
+                vec![
+                    0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+                ]
+                .into_iter(),
             )
-            .buckets(exponential_buckets(1.0, 2.0, 10).unwrap()),
-            &["dht", "query", "stat"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(kad_query_stats.clone()))
-            .unwrap();
+        });
+        registry.register(
+            Descriptor::new(
+                "histogram",
+                "Duration of a ping round trip.",
+                "ping_duration",
+            ),
+            Box::new(ping_duration.clone()),
+        );
+        // &["dht", "country"],
 
-        let ping_duration = HistogramVec::new(
-            HistogramOpts::new("ping_duration", "Duration of a ping round trip."),
-            &["dht", "country"],
-        )
-        .unwrap();
-        registry.register(Box::new(ping_duration.clone())).unwrap();
-
-        let meta_random_node_lookup_triggered = CounterVec::new(
-            Opts::new(
-                "meta_random_node_lookup_triggered",
+        let meta_random_node_lookup_triggered = Family::new();
+        registry.register(
+            Descriptor::new(
+                "counter",
                 "Number of times a random Kademlia node lookup was triggered.",
+                "meta_random_node_lookup_triggered",
             ),
-            &["dht"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(meta_random_node_lookup_triggered.clone()))
-            .unwrap();
+            Box::new(meta_random_node_lookup_triggered.clone()),
+        );
+        // &["dht"],
 
-        let meta_node_still_online_check_triggered = CounterVec::new(
-            Opts::new(
-                "meta_node_still_online_check_triggered",
-                "Number of times a connection to a node was established to ensure it is still online.",
-            ),
-            &["dht"],
-        )
-            .unwrap();
-        registry
-            .register(Box::new(meta_node_still_online_check_triggered.clone()))
-            .unwrap();
+        let meta_node_still_online_check_triggered = Family::new();
+        registry.register(Descriptor::new(
+            "counter",
+            "Number of times a connection to a node was established to ensure it is still online.",
+            "meta_node_still_online_check_triggered",
+        ), Box::new(meta_node_still_online_check_triggered.clone()));
 
-        let meta_libp2p_network_info_num_peers = GaugeVec::new(
-            Opts::new(
-                "meta_libp2p_network_info_num_peers",
+        let meta_libp2p_network_info_num_peers = Family::new();
+        registry.register(
+            Descriptor::new(
+                "gauge",
                 "The total number of connected peers.",
+                "meta_libp2p_network_info_num_peers",
             ),
-            &["dht"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(meta_libp2p_network_info_num_peers.clone()))
-            .unwrap();
+            Box::new(meta_libp2p_network_info_num_peers.clone()),
+        );
+        // &["dht"],
 
-        let meta_libp2p_network_info_num_connections = GaugeVec::new(
-            Opts::new(
-                "meta_libp2p_network_info_num_connections",
+        let meta_libp2p_network_info_num_connections = Family::new();
+        registry.register(
+            Descriptor::new(
+                "gauge",
                 "The total number of connections, both established and pending.",
+                "meta_libp2p_network_info_num_connections",
             ),
-            &["dht"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(meta_libp2p_network_info_num_connections.clone()))
-            .unwrap();
+            Box::new(meta_libp2p_network_info_num_peers.clone()),
+        );
+        // &["dht"],
 
-        let meta_libp2p_network_info_num_connections_pending = GaugeVec::new(
-            Opts::new(
-                "meta_libp2p_network_info_num_connections_pending",
+        let meta_libp2p_network_info_num_connections_pending = Family::new();
+        registry.register(
+            Descriptor::new(
+                "gauge",
                 "The total number of pending connections, both incoming and outgoing.",
+                "meta_libp2p_network_info_num_connections_pending",
             ),
-            &["dht"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(
-                meta_libp2p_network_info_num_connections_pending.clone(),
-            ))
-            .unwrap();
+            Box::new(meta_libp2p_network_info_num_connections_pending.clone()),
+        );
+        // &["dht"],
 
-        let meta_libp2p_network_info_num_connections_established = GaugeVec::new(
-            Opts::new(
-                "meta_libp2p_network_info_num_connections_established",
+        let meta_libp2p_network_info_num_connections_established = Family::new();
+        registry.register(
+            Descriptor::new(
+                "gauge",
                 "The total number of established connections.",
+                "meta_libp2p_network_info_num_connections_established",
             ),
-            &["dht"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(
-                meta_libp2p_network_info_num_connections_established.clone(),
-            ))
-            .unwrap();
+            Box::new(meta_libp2p_network_info_num_connections_established.clone()),
+        );
+        // &["dht"],
 
         Metrics {
             event_counter,

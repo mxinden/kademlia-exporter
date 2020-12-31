@@ -1,7 +1,12 @@
 use libp2p::PeerId;
-use prometheus::{CounterVec, GaugeVec, Opts, Registry};
+use open_metrics_client::counter::Counter;
+use open_metrics_client::family::Family;
+use open_metrics_client::gauge::Gauge;
+use open_metrics_client::registry::{Descriptor, DynSendRegistry};
 use std::{
     collections::HashMap,
+    convert::TryInto,
+    sync::atomic::AtomicU64,
     time::{Duration, Instant},
 };
 
@@ -45,8 +50,8 @@ impl NodeStore {
             .retain(|_, n| (Instant::now() - n.last_seen) < Duration::from_secs(60 * 60 * 12));
         self.metrics
             .meta_offline_nodes_removed
-            .with_label_values(&[&self.dht])
-            .inc_by((length - self.nodes.len()) as f64);
+            .get_or_create(&vec![("dht".to_string(), self.dht.clone())])
+            .inc_by((length - self.nodes.len()).try_into().unwrap());
     }
 
     fn update_metrics(&self) {
@@ -90,8 +95,13 @@ impl NodeStore {
             for ((country, provider), count) in countries {
                 self.metrics
                     .nodes_seen_within
-                    .with_label_values(&[&self.dht, &country, &provider, &last_seen_within])
-                    .set(count as f64);
+                    .get_or_create(&vec![
+                        ("dht".to_string(), self.dht.clone()),
+                        ("country".to_string(), country.clone()),
+                        ("cloud_provider".to_string(), provider.clone()),
+                        ("last_seen_within".to_string(), last_seen_within.clone()),
+                    ])
+                    .set(count);
             }
         }
 
@@ -143,8 +153,13 @@ impl NodeStore {
             for ((country, provider), count) in countries {
                 self.metrics
                     .nodes_up_since
-                    .with_label_values(&[&self.dht, &country, &provider, &up_since])
-                    .set(count as f64);
+                    .get_or_create(&vec![
+                        ("dht".to_string(), self.dht.clone()),
+                        ("country".to_string(), country.clone()),
+                        ("cloud_provider".to_string(), provider.clone()),
+                        ("up_since".to_string(), up_since.clone()),
+                    ])
+                    .set(count);
             }
         }
     }
@@ -199,47 +214,46 @@ impl Node {
 
 #[derive(Clone)]
 pub struct Metrics {
-    nodes_seen_within: GaugeVec,
-    nodes_up_since: GaugeVec,
+    nodes_seen_within: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
+    nodes_up_since: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
 
-    meta_offline_nodes_removed: CounterVec,
+    meta_offline_nodes_removed: Family<Vec<(String, String)>, Counter<AtomicU64>>,
 }
 
 impl Metrics {
-    pub fn register(registry: &Registry) -> Metrics {
-        let nodes_seen_within = GaugeVec::new(
-            Opts::new(
-                "nodes_seen_within",
+    pub fn register(registry: &mut DynSendRegistry) -> Metrics {
+        let nodes_seen_within = Family::new();
+        registry.register(
+            Descriptor::new(
+                "gauge",
                 "Unique nodes discovered within the time bound through the Dht.",
+                "nodes_seen_within",
             ),
-            &["dht", "country", "cloud_provider", "last_seen_within"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(nodes_seen_within.clone()))
-            .unwrap();
+            Box::new(nodes_seen_within.clone()),
+        );
+        // &["dht", "country", "cloud_provider", "last_seen_within"],
 
-        let nodes_up_since = GaugeVec::new(
-            Opts::new(
-                "nodes_up_since",
+        let nodes_up_since = Family::new();
+        registry.register(
+            Descriptor::new(
+                "gauge",
                 "Unique nodes discovered through the Dht and up since timebound.",
+                "nodes_up_since",
             ),
-            &["dht", "country", "cloud_provider", "up_since"],
-        )
-        .unwrap();
-        registry.register(Box::new(nodes_up_since.clone())).unwrap();
+            Box::new(nodes_up_since.clone()),
+        );
+        // &["dht", "country", "cloud_provider", "up_since"],
 
-        let meta_offline_nodes_removed = CounterVec::new(
-            Opts::new(
-                "meta_offline_nodes_removed",
+        let meta_offline_nodes_removed = Family::new();
+        registry.register(
+            Descriptor::new(
+                "counter",
                 "Number of nodes removed due to being offline longer than 12h.",
+                "meta_offline_nodes_removed",
             ),
-            &["dht"],
-        )
-        .unwrap();
-        registry
-            .register(Box::new(meta_offline_nodes_removed.clone()))
-            .unwrap();
+            Box::new(meta_offline_nodes_removed.clone()),
+        );
+        // &["dht"],
 
         Metrics {
             nodes_seen_within,
