@@ -12,12 +12,12 @@ use libp2p::{
 use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
-use open_metrics_client::counter::Counter;
 use open_metrics_client::encoding::text::Encode;
-use open_metrics_client::family::Family;
-use open_metrics_client::gauge::Gauge;
-use open_metrics_client::histogram::{exponential_series, Histogram};
-use open_metrics_client::registry::{Descriptor, DynSendRegistry};
+use open_metrics_client::metrics::counter::Counter;
+use open_metrics_client::metrics::family::Family;
+use open_metrics_client::metrics::gauge::Gauge;
+use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
+use open_metrics_client::registry::DynSendRegistry;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -634,24 +634,18 @@ struct Metrics {
 
 impl Metrics {
     fn register(registry: &mut DynSendRegistry) -> Metrics {
-        let event_counter = Family::new();
+        let event_counter = Family::default();
         registry.register(
-            Descriptor::new(
-                "counter",
-                "Libp2p network behaviour events.",
-                "network_behaviour_event",
-            ),
+            "network_behaviour_event",
+            "Libp2p network behaviour events",
             Box::new(event_counter.clone()),
         );
 
         let kad_random_node_lookup_duration =
             Family::new_with_constructor(|| Histogram::new(exponential_series(0.1, 2.0, 10)));
         registry.register(
-            Descriptor::new(
-                "histogram",
-                "Duration of random Kademlia node lookup.",
-                "kad_random_node_lookup_duration",
-            ),
+            "kad_random_node_lookup_duration",
+            "Duration of random Kademlia node lookup",
             Box::new(kad_random_node_lookup_duration.clone()),
         );
         // &["dht", "result"],
@@ -659,11 +653,8 @@ impl Metrics {
         let kad_query_stats =
             Family::new_with_constructor(|| Histogram::new(exponential_series(1.0, 2.0, 10)));
         registry.register(
-            Descriptor::new(
-                "histogram",
-                "Kademlia query statistics (number of requests, successes, failures and duration).",
-                "kad_query_stats",
-            ),
+            "kad_query_stats",
+            "Kademlia query statistics (number of requests, successes, failures and duration)",
             Box::new(kad_query_stats.clone()),
         );
         // &["dht", "query", "stat"],
@@ -677,73 +668,55 @@ impl Metrics {
             )
         });
         registry.register(
-            Descriptor::new(
-                "histogram",
-                "Duration of a ping round trip.",
-                "ping_duration",
-            ),
+            "ping_duration",
+            "Duration of a ping round trip",
             Box::new(ping_duration.clone()),
         );
         // &["dht", "country"],
 
-        let meta_random_node_lookup_triggered = Family::new();
+        let meta_random_node_lookup_triggered = Family::default();
         registry.register(
-            Descriptor::new(
-                "counter",
-                "Number of times a random Kademlia node lookup was triggered.",
-                "meta_random_node_lookup_triggered",
-            ),
+            "meta_random_node_lookup_triggered",
+            "Number of times a random Kademlia node lookup was triggered",
             Box::new(meta_random_node_lookup_triggered.clone()),
         );
         // &["dht"],
 
-        let meta_node_still_online_check_triggered = Family::new();
-        registry.register(Descriptor::new(
-            "counter",
-            "Number of times a connection to a node was established to ensure it is still online.",
+        let meta_node_still_online_check_triggered = Family::default();
+        registry.register(
             "meta_node_still_online_check_triggered",
-        ), Box::new(meta_node_still_online_check_triggered.clone()));
+            "Number of times a connection to a node was established to ensure it is still online",
+            Box::new(meta_node_still_online_check_triggered.clone()),
+        );
 
-        let meta_libp2p_network_info_num_peers = Family::new();
+        let meta_libp2p_network_info_num_peers = Family::default();
         registry.register(
-            Descriptor::new(
-                "gauge",
-                "The total number of connected peers.",
-                "meta_libp2p_network_info_num_peers",
-            ),
+            "meta_libp2p_network_info_num_peers",
+            "The total number of connected peers",
             Box::new(meta_libp2p_network_info_num_peers.clone()),
         );
         // &["dht"],
 
-        let meta_libp2p_network_info_num_connections = Family::new();
+        let meta_libp2p_network_info_num_connections = Family::default();
         registry.register(
-            Descriptor::new(
-                "gauge",
-                "The total number of connections, both established and pending.",
-                "meta_libp2p_network_info_num_connections",
-            ),
+            "meta_libp2p_network_info_num_connections",
+            "The total number of connections, both established and pending",
             Box::new(meta_libp2p_network_info_num_peers.clone()),
         );
         // &["dht"],
 
-        let meta_libp2p_network_info_num_connections_pending = Family::new();
+        let meta_libp2p_network_info_num_connections_pending = Family::default();
         registry.register(
-            Descriptor::new(
-                "gauge",
-                "The total number of pending connections, both incoming and outgoing.",
-                "meta_libp2p_network_info_num_connections_pending",
-            ),
+            "meta_libp2p_network_info_num_connections_pending",
+            "The total number of pending connections, both incoming and outgoing",
             Box::new(meta_libp2p_network_info_num_connections_pending.clone()),
         );
         // &["dht"],
 
-        let meta_libp2p_network_info_num_connections_established = Family::new();
+        let meta_libp2p_network_info_num_connections_established = Family::default();
         registry.register(
-            Descriptor::new(
-                "gauge",
-                "The total number of established connections.",
-                "meta_libp2p_network_info_num_connections_established",
-            ),
+            "meta_libp2p_network_info_num_connections_established",
+            "The total number of established connections",
             Box::new(meta_libp2p_network_info_num_connections_established.clone()),
         );
         // &["dht"],

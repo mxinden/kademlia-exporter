@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     })
     .unwrap();
 
-    let mut registry = DynSendRegistry::new();
+    let mut registry = DynSendRegistry::default();
     let mut sub_registry = registry.sub_registry("kademlia_exporter");
 
     let ip_db = config

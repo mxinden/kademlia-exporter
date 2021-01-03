@@ -1,8 +1,8 @@
 use libp2p::PeerId;
-use open_metrics_client::counter::Counter;
-use open_metrics_client::family::Family;
-use open_metrics_client::gauge::Gauge;
-use open_metrics_client::registry::{Descriptor, DynSendRegistry};
+use open_metrics_client::metrics::counter::Counter;
+use open_metrics_client::metrics::family::Family;
+use open_metrics_client::metrics::gauge::Gauge;
+use open_metrics_client::registry::DynSendRegistry;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -222,35 +222,26 @@ pub struct Metrics {
 
 impl Metrics {
     pub fn register(registry: &mut DynSendRegistry) -> Metrics {
-        let nodes_seen_within = Family::new();
+        let nodes_seen_within = Family::default();
         registry.register(
-            Descriptor::new(
-                "gauge",
-                "Unique nodes discovered within the time bound through the Dht.",
-                "nodes_seen_within",
-            ),
+            "nodes_seen_within",
+            "Unique nodes discovered within the time bound through the Dht",
             Box::new(nodes_seen_within.clone()),
         );
         // &["dht", "country", "cloud_provider", "last_seen_within"],
 
-        let nodes_up_since = Family::new();
+        let nodes_up_since = Family::default();
         registry.register(
-            Descriptor::new(
-                "gauge",
-                "Unique nodes discovered through the Dht and up since timebound.",
-                "nodes_up_since",
-            ),
+            "nodes_up_since",
+            "Unique nodes discovered through the Dht and up since timebound",
             Box::new(nodes_up_since.clone()),
         );
         // &["dht", "country", "cloud_provider", "up_since"],
 
-        let meta_offline_nodes_removed = Family::new();
+        let meta_offline_nodes_removed = Family::default();
         registry.register(
-            Descriptor::new(
-                "counter",
-                "Number of nodes removed due to being offline longer than 12h.",
-                "meta_offline_nodes_removed",
-            ),
+            "meta_offline_nodes_removed",
+            "Number of nodes removed due to being offline longer than 12h",
             Box::new(meta_offline_nodes_removed.clone()),
         );
         // &["dht"],
