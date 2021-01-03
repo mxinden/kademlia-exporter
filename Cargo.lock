@@ -1781,6 +1781,8 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 [[package]]
 name = "open-metrics-client"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a55a50e28afeb1fdae1df97202e8efd938e208dd6140713b25f53b218056d42b"
 dependencies = [
  "dtoa",
  "itoa",

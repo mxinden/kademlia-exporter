@@ -33,8 +33,3 @@ toml = "0.5.8"
 # Include debugging symbols in release binary.
 [profile.release]
 debug = true
-
-
-[patch.crates-io]
-open-metrics-client = { path = "../rust-open-metrics-client" }
-
