@@ -14,7 +14,7 @@ env_logger = "0.8.2"
 futures = "0.3.9"
 libp2p = { version = "0.33.0", default-features = false, features = ["dns", "noise", "tcp-async-std", "yamux", "identify", "kad", "ping", "mplex"] }
 log = "0.4.11"
-open-metrics-client = "0.5"
+open-metrics-client = "0.6"
 void = "1.0.2"
 tide = "0.15.0"
 exit-future = "0.2.0"
@@ -29,6 +29,9 @@ toml = "0.5.8"
 # [patch."https://github.com/mxinden/rust-libp2p"]
 # libp2p = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p" }
 # libp2p-kad = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p/protocols/kad" }
+
+# [patch.crates-io]
+# open-metrics-client = { path = "../rust-open-metrics-client" }
 
 # Include debugging symbols in release binary.
 [profile.release]
