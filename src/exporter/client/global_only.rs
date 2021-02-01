@@ -53,4 +53,8 @@ impl<T: Transport> Transport for GlobalIpOnly<T> {
             }
         }
     }
+
+    fn address_translation(&self, listen: &Multiaddr, observed: &Multiaddr) -> Option<Multiaddr> {
+        self.inner.address_translation(listen, observed)
+    }
 }

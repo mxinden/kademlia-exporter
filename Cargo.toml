@@ -7,23 +7,23 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = "1.8.0"
+async-std = "1.9.0"
 cidr = "0.1.1"
 csv = "1.1.5"
 env_logger = "0.8.2"
 futures = "0.3.12"
-libp2p = { version = "0.33.0", default-features = false, features = ["dns", "noise", "tcp-async-std", "yamux", "identify", "kad", "ping", "mplex"] }
-log = "0.4.13"
-open-metrics-client = "0.6"
+libp2p = { version = "0.34.0", default-features = false, features = ["dns", "noise", "tcp-async-io", "yamux", "identify", "kad", "ping", "mplex"] }
+log = "0.4.14"
+open-metrics-client = "0.6.0"
 void = "1.0.2"
-tide = "0.15.0"
+tide = "0.16.0"
 exit-future = "0.2.0"
 ctrlc = "3.1.7"
 structopt = "0.3.21"
 futures-timer = "3.0.2"
 maxminddb = "0.17.1"
-serde = "1.0.118"
-serde_derive = "1.0.117"
+serde = "1.0.123"
+serde_derive = "1.0.123"
 toml = "0.5.8"
 
 # [patch."https://github.com/mxinden/rust-libp2p"]
