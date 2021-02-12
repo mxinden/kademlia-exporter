@@ -10,7 +10,7 @@ edition = "2018"
 async-std = "1.9.0"
 cidr = "0.1.1"
 csv = "1.1.5"
-env_logger = "0.8.2"
+env_logger = "0.8.3"
 futures = "0.3.12"
 libp2p = { version = "0.34.0", default-features = false, features = ["dns", "noise", "tcp-async-io", "yamux", "identify", "kad", "ping", "mplex"] }
 log = "0.4.14"
