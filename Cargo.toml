@@ -12,7 +12,7 @@ cidr = "0.1.1"
 csv = "1.1.5"
 env_logger = "0.8.3"
 futures = "0.3.12"
-libp2p = { version = "0.34.0", default-features = false, features = ["dns", "noise", "tcp-async-io", "yamux", "identify", "kad", "ping", "mplex"] }
+libp2p = { version = "0.35.0", default-features = false, features = ["dns", "noise", "tcp-async-io", "yamux", "identify", "kad", "ping", "mplex"] }
 log = "0.4.14"
 open-metrics-client = "0.6.0"
 void = "1.0.2"
