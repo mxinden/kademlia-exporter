@@ -2,10 +2,8 @@ use crate::config::DhtConfig;
 use futures::prelude::*;
 use libp2p::{
     core::{
-        network::NetworkInfo,
-        either::EitherOutput,
-        self, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed,
-        transport::Transport, upgrade,
+        self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox,
+        network::NetworkInfo, transport::Boxed, transport::Transport, upgrade,
     },
     dns,
     identify::{Identify, IdentifyEvent},
@@ -47,8 +45,7 @@ impl Client {
             config.protocol_name,
         )?;
         let transport = build_transport(local_key, config.noise_legacy);
-        let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id)
-            .build();
+        let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id).build();
 
         // Listen on all interfaces and whatever port the OS assigns.
         Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
@@ -235,30 +232,34 @@ fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, Strea
             EitherOutput::Second((peer_id, o)) => (peer_id, EitherOutput::Second(o)),
         };
 
-        core::upgrade::SelectUpgrade::new(xx_config.into_authenticated(), ix_config.into_authenticated())
-			      .map_inbound(extract_peer_id)
-			      .map_outbound(extract_peer_id)
-	  };
+        core::upgrade::SelectUpgrade::new(
+            xx_config.into_authenticated(),
+            ix_config.into_authenticated(),
+        )
+        .map_inbound(extract_peer_id)
+        .map_outbound(extract_peer_id)
+    };
 
-	  let multiplexing_config = {
-		    let mut mplex_config = mplex::MplexConfig::new();
-		    mplex_config.set_max_buffer_behaviour(mplex::MaxBufferBehaviour::Block);
-		    mplex_config.set_max_buffer_size(usize::MAX);
+    let multiplexing_config = {
+        let mut mplex_config = mplex::MplexConfig::new();
+        mplex_config.set_max_buffer_behaviour(mplex::MaxBufferBehaviour::Block);
+        mplex_config.set_max_buffer_size(usize::MAX);
 
-		    let mut yamux_config = yamux::YamuxConfig::default();
-		    // Enable proper flow-control: window updates are only sent when
-		    // buffered data has been consumed.
-		    yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
+        let mut yamux_config = yamux::YamuxConfig::default();
+        // Enable proper flow-control: window updates are only sent when
+        // buffered data has been consumed.
+        yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
 
-		    core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
-			      .map_inbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
-			      .map_outbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
-	  };
+        core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
+            .map_inbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
+            .map_outbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
+    };
 
-	  transport.upgrade(upgrade::Version::V1)
-		    .authenticate(authentication_config)
-		    .multiplex(multiplexing_config)
-		    .timeout(Duration::from_secs(20))
-		    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-		    .boxed()
+    transport
+        .upgrade(upgrade::Version::V1)
+        .authenticate(authentication_config)
+        .multiplex(multiplexing_config)
+        .timeout(Duration::from_secs(20))
+        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        .boxed()
 }
