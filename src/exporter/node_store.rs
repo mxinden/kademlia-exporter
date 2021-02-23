@@ -2,7 +2,7 @@ use libp2p::PeerId;
 use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
 use open_metrics_client::metrics::gauge::Gauge;
-use open_metrics_client::registry::DynSendRegistry;
+use open_metrics_client::registry::ConvenientRegistry;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -221,7 +221,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub fn register(registry: &mut DynSendRegistry) -> Metrics {
+    pub fn register(registry: &mut ConvenientRegistry) -> Metrics {
         let nodes_seen_within = Family::default();
         registry.register(
             "nodes_seen_within",
