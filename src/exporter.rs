@@ -17,7 +17,7 @@ use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
 use open_metrics_client::metrics::gauge::Gauge;
 use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
-use open_metrics_client::registry::ConvenientRegistry;
+use open_metrics_client::registry::Registry;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -58,7 +58,7 @@ impl Exporter {
         dhts: Vec<DhtConfig>,
         ip_db: Option<Reader<Vec<u8>>>,
         cloud_provider_db: Option<cloud_provider_db::Db>,
-        registry: &mut ConvenientRegistry,
+        registry: &mut Registry,
     ) -> Result<Self, Box<dyn Error>> {
         let metrics = Metrics::register(registry);
 
@@ -633,7 +633,7 @@ struct Metrics {
 }
 
 impl Metrics {
-    fn register(registry: &mut ConvenientRegistry) -> Metrics {
+    fn register(registry: &mut Registry) -> Metrics {
         let event_counter = Family::default();
         registry.register(
             "network_behaviour_event",
