@@ -2,7 +2,7 @@
 
 use async_std::task;
 use open_metrics_client::encoding::text::encode;
-use open_metrics_client::registry::ConvenientRegistry;
+use open_metrics_client::registry::Registry;
 use std::{
     error::Error,
     path::PathBuf,
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     })
     .unwrap();
 
-    let mut registry = ConvenientRegistry::default();
+    let mut registry = Registry::default();
     let mut sub_registry = registry.sub_registry("kademlia_exporter");
 
     let ip_db = config
@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let metrics_server = std::thread::spawn(move || {
         let mut app = tide::with_state(registry);
         app.at("/metrics").get(
-            |req: tide::Request<Arc<Mutex<ConvenientRegistry>>>| async move {
+            |req: tide::Request<Arc<Mutex<Registry>>>| async move {
                 let mut buffer = vec![];
                 encode(&mut buffer, &req.state().lock().unwrap()).unwrap();
 
