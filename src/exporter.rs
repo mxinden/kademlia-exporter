@@ -22,7 +22,6 @@ use std::{
     collections::HashMap,
     convert::TryInto,
     error::Error,
-    io::Write,
     net::IpAddr,
     pin::Pin,
     sync::atomic::AtomicU64,
@@ -131,7 +130,7 @@ impl Exporter {
                         self.metrics
                             .ping_duration
                             .get_or_create(&vec![
-                                ("name".to_string(), name.clone()),
+                                ("dht".to_string(), name.clone()),
                                 ("country".to_string(), country.clone()),
                             ])
                             .observe(rtt.as_secs_f64());
@@ -571,7 +570,7 @@ impl Future for Exporter {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Encode)]
 struct EventCounterLabels {
     // TODO: Could one not use Cow here as EventCounterLabels would be borrowed
     // in most cases anyways?
@@ -580,39 +579,11 @@ struct EventCounterLabels {
     event: String,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Encode)]
 enum BehaviourLabel {
     Identify,
     Ping,
     Kad,
-}
-
-impl Encode for EventCounterLabels {
-    fn encode(&self, writer: &mut dyn Write) -> Result<(), std::io::Error> {
-        writer.write(b"dht")?;
-        writer.write(b"=\"")?;
-        writer.write(self.dht.as_bytes())?;
-        writer.write(b"\"")?;
-        writer.write(b",")?;
-
-        writer.write(b"behaviour")?;
-        writer.write(b"=\"")?;
-        let behaviour = match self.behaviour {
-            BehaviourLabel::Identify => "identify",
-            BehaviourLabel::Ping => "ping",
-            BehaviourLabel::Kad => "kad",
-        };
-        writer.write(behaviour.as_bytes())?;
-        writer.write(b"\"")?;
-        writer.write(b",")?;
-
-        writer.write(b"event")?;
-        writer.write(b"=\"")?;
-        writer.write(self.event.as_bytes())?;
-        writer.write(b"\"")?;
-
-        Ok(())
-    }
 }
 
 struct Metrics {
