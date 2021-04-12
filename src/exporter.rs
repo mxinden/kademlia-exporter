@@ -24,7 +24,6 @@ use std::{
     error::Error,
     net::IpAddr,
     pin::Pin,
-    sync::atomic::AtomicU64,
     task::{Context, Poll},
     time::{Duration, Instant},
 };
@@ -587,20 +586,18 @@ enum BehaviourLabel {
 }
 
 struct Metrics {
-    event_counter: Family<EventCounterLabels, Counter<AtomicU64>>,
+    event_counter: Family<EventCounterLabels, Counter>,
 
     ping_duration: Family<Vec<(String, String)>, Histogram>,
     kad_random_node_lookup_duration: Family<Vec<(String, String)>, Histogram>,
     kad_query_stats: Family<Vec<(String, String)>, Histogram>,
 
-    meta_random_node_lookup_triggered: Family<Vec<(String, String)>, Counter<AtomicU64>>,
-    meta_node_still_online_check_triggered: Family<Vec<(String, String)>, Counter<AtomicU64>>,
-    meta_libp2p_network_info_num_peers: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
-    meta_libp2p_network_info_num_connections: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
-    meta_libp2p_network_info_num_connections_pending:
-        Family<Vec<(String, String)>, Gauge<AtomicU64>>,
-    meta_libp2p_network_info_num_connections_established:
-        Family<Vec<(String, String)>, Gauge<AtomicU64>>,
+    meta_random_node_lookup_triggered: Family<Vec<(String, String)>, Counter>,
+    meta_node_still_online_check_triggered: Family<Vec<(String, String)>, Counter>,
+    meta_libp2p_network_info_num_peers: Family<Vec<(String, String)>, Gauge>,
+    meta_libp2p_network_info_num_connections: Family<Vec<(String, String)>, Gauge>,
+    meta_libp2p_network_info_num_connections_pending: Family<Vec<(String, String)>, Gauge>,
+    meta_libp2p_network_info_num_connections_established: Family<Vec<(String, String)>, Gauge>,
 }
 
 impl Metrics {
