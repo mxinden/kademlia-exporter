@@ -6,7 +6,6 @@ use open_metrics_client::registry::Registry;
 use std::{
     collections::HashMap,
     convert::TryInto,
-    sync::atomic::AtomicU64,
     time::{Duration, Instant},
 };
 
@@ -214,10 +213,10 @@ impl Node {
 
 #[derive(Clone)]
 pub struct Metrics {
-    nodes_seen_within: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
-    nodes_up_since: Family<Vec<(String, String)>, Gauge<AtomicU64>>,
+    nodes_seen_within: Family<Vec<(String, String)>, Gauge>,
+    nodes_up_since: Family<Vec<(String, String)>, Gauge>,
 
-    meta_offline_nodes_removed: Family<Vec<(String, String)>, Counter<AtomicU64>>,
+    meta_offline_nodes_removed: Family<Vec<(String, String)>, Counter>,
 }
 
 impl Metrics {
