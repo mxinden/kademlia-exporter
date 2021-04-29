@@ -1,0 +1,26 @@
+version: 2
+updates:
+- package-ecosystem: cargo
+  directory: "/"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: open-metrics-client
+    versions:
+    - 0.7.0
+  - dependency-name: futures
+    versions:
+    - 0.3.13
+  - dependency-name: tide
+    versions:
+    - 0.15.1
+  - dependency-name: log
+    versions:
+    - 0.4.14
+  - dependency-name: serde
+    versions:
+    - 1.0.123
+  - dependency-name: async-std
+    versions:
+    - 1.9.0
