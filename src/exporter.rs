@@ -16,7 +16,7 @@ use open_metrics_client::encoding::text::Encode;
 use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
 use open_metrics_client::metrics::gauge::Gauge;
-use open_metrics_client::metrics::histogram::{exponential_series, Histogram};
+use open_metrics_client::metrics::histogram::{exponential_buckets, Histogram};
 use open_metrics_client::registry::Registry;
 use std::{
     collections::HashMap,
@@ -610,7 +610,7 @@ impl Metrics {
         );
 
         let kad_random_node_lookup_duration =
-            Family::new_with_constructor(|| Histogram::new(exponential_series(0.1, 2.0, 10)));
+            Family::new_with_constructor(|| Histogram::new(exponential_buckets(0.1, 2.0, 10)));
         registry.register(
             "kad_random_node_lookup_duration",
             "Duration of random Kademlia node lookup",
@@ -619,7 +619,7 @@ impl Metrics {
         // &["dht", "result"],
 
         let kad_query_stats =
-            Family::new_with_constructor(|| Histogram::new(exponential_series(1.0, 2.0, 10)));
+            Family::new_with_constructor(|| Histogram::new(exponential_buckets(1.0, 2.0, 10)));
         registry.register(
             "kad_query_stats",
             "Kademlia query statistics (number of requests, successes, failures and duration)",
