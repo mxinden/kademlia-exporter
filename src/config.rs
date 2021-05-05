@@ -1,6 +1,7 @@
 use libp2p::core::Multiaddr;
 use serde_derive::Deserialize;
 use std::path::PathBuf;
+use std::net::SocketAddr;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
@@ -23,4 +24,5 @@ pub struct DhtConfig {
     pub disjoint_query_paths: bool,
     pub protocol_name: Option<String>,
     pub noise_legacy: bool,
+    pub listen_address: Option<SocketAddr>,
 }
