@@ -4,7 +4,7 @@ use futures::prelude::*;
 use libp2p::{
     core::{
         self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox,
-        network::NetworkInfo, transport::Boxed, transport::Transport, upgrade,
+        network::NetworkInfo, transport::Boxed, transport::Transport, upgrade, Multiaddr,
     },
     dns,
     identify::{Identify, IdentifyConfig, IdentifyEvent},
@@ -48,8 +48,13 @@ impl Client {
         let transport = build_transport(local_key, config.noise_legacy);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id).build();
 
-        // Listen on all interfaces and whatever port the OS assigns.
-        Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
+        let addr = match config.listen_address {
+            Some(addr) => Multiaddr::empty()
+                .with(addr.ip().into())
+                .with(Protocol::Tcp(addr.port())),
+            None => "/ip4/0.0.0.0/tcp/0".parse()?,
+        };
+        swarm.listen_on(addr)?;
 
         for mut bootnode in config.bootnodes {
             let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
