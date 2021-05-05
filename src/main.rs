@@ -57,14 +57,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let exit_clone = exit.clone();
     let metrics_server = std::thread::spawn(move || {
         let mut app = tide::with_state(registry);
-        app.at("/metrics").get(
-            |req: tide::Request<Arc<Mutex<Registry>>>| async move {
+        app.at("/metrics")
+            .get(|req: tide::Request<Arc<Mutex<Registry>>>| async move {
                 let mut buffer = vec![];
                 encode(&mut buffer, &req.state().lock().unwrap()).unwrap();
 
                 Ok(String::from_utf8(buffer).unwrap())
-            },
-        );
+            });
         let endpoint = app.listen("0.0.0.0:8080");
         futures::pin_mut!(endpoint);
         task::block_on(exit_clone.until(endpoint))

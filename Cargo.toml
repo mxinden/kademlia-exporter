@@ -12,7 +12,7 @@ cidr = "0.1.1"
 csv = "1.1.6"
 env_logger = "0.8.3"
 futures = "0.3.14"
-libp2p = { version = "0.35.1", default-features = false, features = ["dns", "noise", "tcp-async-io", "yamux", "identify", "kad", "ping", "mplex"] }
+libp2p = { version = "0.37.1", default-features = false, features = ["dns-async-std", "noise", "tcp-async-io", "yamux", "identify", "kad", "ping", "mplex"] }
 log = "0.4.14"
 open-metrics-client = "0.10.0"
 void = "1.0.2"
@@ -23,7 +23,7 @@ structopt = "0.3.21"
 futures-timer = "3.0.2"
 maxminddb = "0.17.2"
 serde = "1.0.125"
-serde_derive = "1.0.123"
+serde_derive = "1.0.125"
 toml = "0.5.8"
 
 # [patch."https://github.com/mxinden/rust-libp2p"]

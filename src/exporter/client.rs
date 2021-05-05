@@ -1,4 +1,5 @@
 use crate::config::DhtConfig;
+use futures::executor::block_on;
 use futures::prelude::*;
 use libp2p::{
     core::{
@@ -6,7 +7,7 @@ use libp2p::{
         network::NetworkInfo, transport::Boxed, transport::Transport, upgrade,
     },
     dns,
-    identify::{Identify, IdentifyEvent},
+    identify::{Identify, IdentifyConfig, IdentifyEvent},
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent},
     mplex, noise,
@@ -56,10 +57,13 @@ impl Client {
             } else {
                 panic!("expected peer id");
             };
-            swarm.kademlia.add_address(&bootnode_peer_id, bootnode);
+            swarm
+                .behaviour_mut()
+                .kademlia
+                .add_address(&bootnode_peer_id, bootnode);
         }
 
-        swarm.kademlia.bootstrap().unwrap();
+        swarm.behaviour_mut().kademlia.bootstrap().unwrap();
 
         Ok(Client {
             swarm,
@@ -68,7 +72,10 @@ impl Client {
     }
 
     pub fn get_closest_peers(&mut self, peer_id: PeerId) {
-        self.swarm.kademlia.get_closest_peers(peer_id);
+        self.swarm
+            .behaviour_mut()
+            .kademlia
+            .get_closest_peers(peer_id);
     }
 
     pub fn dial(&mut self, peer_id: &PeerId) -> Result<bool, DialError> {
@@ -151,9 +158,11 @@ impl MyBehaviour {
 
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));
 
-        let user_agent = "substrate-node/v2.0.0-e3245d49d-x86_64-linux-gnu (unknown)".to_string();
-        let proto_version = "/substrate/1.0".to_string();
-        let identify = Identify::new(proto_version, user_agent, local_key.public());
+        let proto_version = "/libp2p/1.0.0".to_string();
+        let identify = Identify::new(
+            IdentifyConfig::new(proto_version, local_key.public())
+                .with_agent_version(format!("rust-libp2p/{}", env!("CARGO_PKG_VERSION"))),
+        );
 
         Ok(MyBehaviour {
             kademlia,
@@ -203,7 +212,7 @@ fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, Strea
     // addresses in most Dhts dialing private IP addresses can easily be (and
     // has been) interpreted as a port-scan by ones hosting provider.
     let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
-    let transport = dns::DnsConfig::new(global_only_tcp).unwrap();
+    let transport = block_on(dns::DnsConfig::system(global_only_tcp)).unwrap();
 
     let authentication_config = {
         let noise_keypair_legacy = noise::Keypair::<noise::X25519>::new().into_authentic(&keypair)

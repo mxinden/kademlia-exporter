@@ -185,6 +185,9 @@ impl Exporter {
                         })
                         .inc();
                 }
+                IdentifyEvent::Pushed { .. } => {
+                    unreachable!("Exporter never pushes identify information.")
+                }
             },
             client::Event::Kademlia(event) => self.record_kademlia_event(name, *event),
         }
