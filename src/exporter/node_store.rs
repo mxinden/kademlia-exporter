@@ -161,6 +161,11 @@ impl NodeStore {
                     .set(count);
             }
         }
+
+        self.metrics
+            .meta_nodes_total
+            .get_or_create(&vec![("dht".to_string(), self.dht.clone())])
+            .set(self.nodes.len() as u64);
     }
 
     pub fn get_peer(&self, peer_id: &PeerId) -> Option<&Node> {
@@ -217,6 +222,7 @@ pub struct Metrics {
     nodes_up_since: Family<Vec<(String, String)>, Gauge>,
 
     meta_offline_nodes_removed: Family<Vec<(String, String)>, Counter>,
+    meta_nodes_total: Family<Vec<(String, String)>, Gauge>,
 }
 
 impl Metrics {
@@ -245,11 +251,19 @@ impl Metrics {
         );
         // &["dht"],
 
+        let meta_nodes_total = Family::default();
+        registry.register(
+            "meta_nodes_total",
+            "Number of nodes tracked",
+            Box::new(meta_nodes_total.clone()),
+        );
+
         Metrics {
             nodes_seen_within,
             nodes_up_since,
 
             meta_offline_nodes_removed,
+            meta_nodes_total,
         }
     }
 }
