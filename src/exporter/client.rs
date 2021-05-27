@@ -145,7 +145,9 @@ impl MyBehaviour {
 
         // Create a Kademlia behaviour.
         let store = MemoryStore::new(local_peer_id.clone());
+
         let mut kademlia_config = KademliaConfig::default();
+
         // TODO: Seems like rust and golang use diffferent max packet sizes
         // https://github.com/libp2p/go-libp2p-core/blob/master/network/network.go#L23
         // https://github.com/libp2p/rust-libp2p/blob/master/protocols/kad/src/protocol.rs#L170
@@ -153,12 +155,21 @@ impl MyBehaviour {
         // Request to PeerId("") in query QueryId(0) failed with Io(Custom {
         // kind: PermissionDenied, error: "len > max" })`
         kademlia_config.set_max_packet_size(8000);
+
         if let Some(protocol_name) = protocol_name {
             kademlia_config.set_protocol_name(protocol_name.into_bytes());
         }
+
         if disjoint_query_paths {
             kademlia_config.disjoint_query_paths(true);
         }
+
+        // Instantly remove records and provider records.
+        //
+        // TODO: Replace hack with option to disable both.
+        kademlia_config.set_record_ttl(Some(Duration::from_secs(0)));
+        kademlia_config.set_provider_record_ttl(Some(Duration::from_secs(0)));
+
         let kademlia = Kademlia::with_config(local_peer_id, store, kademlia_config);
 
         let ping = Ping::new(PingConfig::new().with_keep_alive(true));
