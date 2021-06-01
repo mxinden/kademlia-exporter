@@ -1920,9 +1920,9 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "open-metrics-client"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fbcf9c8273f8d690dd403473b8d28221486b52a78cbeae6f7804d9a44bca9ae"
+checksum = "e7b997479625232ea00af7862e5f772ad2634da3706d72cd4530cf200d1c7158"
 dependencies = [
  "dtoa",
  "itoa",
@@ -1932,9 +1932,9 @@ dependencies = [
 
 [[package]]
 name = "open-metrics-client-derive-text-encode"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bcb7ec0f71ed2e886d4a2d6c4daedf49464cd74c8fca9ff806cacc4380947e7"
+checksum = "a15c83b586f00268c619c1cb3340ec1a6f59dd9ba1d9833a273a68e6d5cd8ffc"
 dependencies = [
  "proc-macro2",
  "quote",
