@@ -195,7 +195,7 @@ impl Exporter {
 
     fn record_kademlia_event(&mut self, name: String, event: KademliaEvent) {
         match event {
-            KademliaEvent::QueryResult { result, stats, .. } => {
+            KademliaEvent::OutboundQueryCompleted { result, stats, .. } => {
                 let query_name;
 
                 match result {
@@ -349,6 +349,7 @@ impl Exporter {
                         .observe(duration.as_secs_f64());
                 }
             }
+            KademliaEvent::InboundRequestServed { .. } => {}
             KademliaEvent::RoutablePeer { peer, address } => {
                 self.metrics
                     .event_counter

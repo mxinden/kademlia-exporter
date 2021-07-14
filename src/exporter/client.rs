@@ -1,6 +1,7 @@
 use crate::config::DhtConfig;
 use futures::executor::block_on;
 use futures::prelude::*;
+use futures::ready;
 use libp2p::{
     core::{
         self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox,
@@ -14,7 +15,7 @@ use libp2p::{
     ping::{Ping, PingConfig, PingEvent},
     swarm::{
         DialError, NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters,
-        SwarmBuilder,
+        SwarmBuilder, SwarmEvent,
     },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
@@ -31,7 +32,6 @@ mod global_only;
 
 pub struct Client {
     swarm: Swarm<MyBehaviour>,
-    listening: bool,
 }
 
 impl Client {
@@ -72,7 +72,6 @@ impl Client {
 
         Ok(Client {
             swarm,
-            listening: false,
         })
     }
 
@@ -100,20 +99,16 @@ impl Client {
 impl Stream for Client {
     type Item = Event;
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
-        match self.swarm.poll_next_unpin(ctx) {
-            Poll::Ready(Some(event)) => return Poll::Ready(Some(event)),
-            Poll::Ready(None) => return Poll::Ready(None),
-            Poll::Pending => {
-                if !self.listening {
-                    for listener in Swarm::listeners(&self.swarm) {
-                        println!("Swarm listening on {:?}", listener);
-                    }
-                    self.listening = true;
+        loop {
+            match ready!(self.swarm.poll_next_unpin(ctx)) {
+                Some(SwarmEvent::Behaviour(event)) => return Poll::Ready(Some(event)),
+                Some(SwarmEvent::NewListenAddr { address, .. }) => {
+                    println!("Swarm listening on {:?}", address);
                 }
+                Some(_) => {}
+                None => return Poll::Ready(None),
             }
         }
-
-        Poll::Pending
     }
 }
 
