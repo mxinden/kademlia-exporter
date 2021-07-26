@@ -550,6 +550,14 @@ impl Future for Exporter {
                     .meta_libp2p_network_info_num_connections_pending
                     .get_or_create(&vec![("dht".to_string(), name.clone())])
                     .set(info.connection_counters().num_pending().into());
+                this.metrics
+                    .meta_libp2p_bandwidth_inbound
+                    .get_or_create(&vec![("dht".to_string(), name.clone())])
+                    .set(client.total_inbound());
+                this.metrics
+                    .meta_libp2p_bandwidth_outbound
+                    .get_or_create(&vec![("dht".to_string(), name.clone())])
+                    .set(client.total_outbound());
             }
         }
 
@@ -602,6 +610,8 @@ struct Metrics {
     meta_libp2p_network_info_num_connections: Family<Vec<(String, String)>, Gauge>,
     meta_libp2p_network_info_num_connections_pending: Family<Vec<(String, String)>, Gauge>,
     meta_libp2p_network_info_num_connections_established: Family<Vec<(String, String)>, Gauge>,
+    meta_libp2p_bandwidth_inbound: Family<Vec<(String, String)>, Gauge>,
+    meta_libp2p_bandwidth_outbound: Family<Vec<(String, String)>, Gauge>,
 }
 
 impl Metrics {
@@ -693,6 +703,22 @@ impl Metrics {
         );
         // &["dht"],
 
+        let meta_libp2p_bandwidth_inbound = Family::default();
+        registry.register(
+            "meta_libp2p_bandwidth_inbound",
+            "The total number of bytes received on the socket",
+            Box::new(meta_libp2p_bandwidth_inbound.clone()),
+        );
+        // &["dht"],
+
+        let meta_libp2p_bandwidth_outbound = Family::default();
+        registry.register(
+            "meta_libp2p_bandwidth_outbound",
+            "The total number of bytes sent on the socket",
+            Box::new(meta_libp2p_bandwidth_outbound.clone()),
+        );
+        // &["dht"],
+
         Metrics {
             event_counter,
 
@@ -706,6 +732,8 @@ impl Metrics {
             meta_libp2p_network_info_num_connections,
             meta_libp2p_network_info_num_connections_pending,
             meta_libp2p_network_info_num_connections_established,
+            meta_libp2p_bandwidth_inbound,
+            meta_libp2p_bandwidth_outbound,
         }
     }
 }
