@@ -2,6 +2,8 @@ use crate::config::DhtConfig;
 use futures::executor::block_on;
 use futures::prelude::*;
 use futures::ready;
+use libp2p::bandwidth::BandwidthSinks;
+use libp2p::TransportExt;
 use libp2p::{
     core::{
         self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox,
@@ -19,6 +21,7 @@ use libp2p::{
     },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
+use std::sync::Arc;
 use std::{
     error::Error,
     io,
@@ -32,6 +35,7 @@ mod global_only;
 
 pub struct Client {
     swarm: Swarm<MyBehaviour>,
+    bandwidth_sinks: Arc<BandwidthSinks>,
 }
 
 impl Client {
@@ -45,7 +49,7 @@ impl Client {
             config.disjoint_query_paths,
             config.protocol_name,
         )?;
-        let transport = build_transport(local_key, config.noise_legacy);
+        let (transport, bandwidth_sinks) = build_transport(local_key, config.noise_legacy);
         let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id).build();
 
         let addr = match config.listen_address {
@@ -72,6 +76,7 @@ impl Client {
 
         Ok(Client {
             swarm,
+            bandwidth_sinks,
         })
     }
 
@@ -93,6 +98,14 @@ impl Client {
 
     pub fn network_info(&self) -> NetworkInfo {
         Swarm::network_info(&self.swarm)
+    }
+
+    pub fn total_outbound(&self) -> u64 {
+        self.bandwidth_sinks.total_outbound()
+    }
+
+    pub fn total_inbound(&self) -> u64 {
+        self.bandwidth_sinks.total_inbound()
     }
 }
 
@@ -217,13 +230,17 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour {
     }
 }
 
-fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, StreamMuxerBox)> {
+fn build_transport(
+    keypair: Keypair,
+    noise_legacy: bool,
+) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<BandwidthSinks>) {
     let tcp = tcp::TcpConfig::new().nodelay(true);
     // Ignore any non global IP addresses. Given the amount of private IP
     // addresses in most Dhts dialing private IP addresses can easily be (and
     // has been) interpreted as a port-scan by ones hosting provider.
     let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
     let transport = block_on(dns::DnsConfig::system(global_only_tcp)).unwrap();
+    let (transport, bandwidth_sinks) = transport.with_bandwidth_logging();
 
     let authentication_config = {
         let noise_keypair_legacy = noise::Keypair::<noise::X25519>::new().into_authentic(&keypair)
@@ -275,11 +292,12 @@ fn build_transport(keypair: Keypair, noise_legacy: bool) -> Boxed<(PeerId, Strea
             .map_outbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
     };
 
-    transport
+    let transport = transport
         .upgrade(upgrade::Version::V1)
         .authenticate(authentication_config)
         .multiplex(multiplexing_config)
         .timeout(Duration::from_secs(20))
         .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-        .boxed()
+        .boxed();
+    (transport, bandwidth_sinks)
 }
