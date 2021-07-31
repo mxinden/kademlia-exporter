@@ -13,11 +13,12 @@ use libp2p::{
     identify::{Identify, IdentifyConfig, IdentifyEvent},
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent},
+    metrics::{Metrics, Recorder},
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     swarm::{
-        DialError, NetworkBehaviourAction, NetworkBehaviourEventProcess, PollParameters,
-        SwarmBuilder, SwarmEvent,
+        DialError, NetworkBehaviour, NetworkBehaviourAction, NetworkBehaviourEventProcess,
+        PollParameters, SwarmBuilder, SwarmEvent,
     },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
@@ -30,16 +31,18 @@ use std::{
     time::Duration,
     usize,
 };
+use open_metrics_client::registry::Registry;
 
 mod global_only;
 
 pub struct Client {
     swarm: Swarm<MyBehaviour>,
     bandwidth_sinks: Arc<BandwidthSinks>,
+    metrics: Metrics,
 }
 
 impl Client {
-    pub fn new(config: DhtConfig) -> Result<Client, Box<dyn Error>> {
+    pub fn new(config: DhtConfig, registry: &mut Registry) -> Result<Client, Box<dyn Error>> {
         // Create a random key for ourselves.
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -77,6 +80,7 @@ impl Client {
         Ok(Client {
             swarm,
             bandwidth_sinks,
+            metrics: Metrics::new(registry),
         })
     }
 
@@ -113,13 +117,22 @@ impl Stream for Client {
     type Item = Event;
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
         loop {
-            match ready!(self.swarm.poll_next_unpin(ctx)) {
-                Some(SwarmEvent::Behaviour(event)) => return Poll::Ready(Some(event)),
-                Some(SwarmEvent::NewListenAddr { address, .. }) => {
+            let event = ready!(self.swarm.poll_next_unpin(ctx)).expect("Infinite stream.");
+            self.metrics.record(&event);
+
+            match event {
+                SwarmEvent::Behaviour(event) => {
+                    match &event {
+                        Event::Ping(e) => self.metrics.record(e),
+                        Event::Identify(e) => self.metrics.record(e.as_ref()),
+                        Event::Kademlia(e) => self.metrics.record(e.as_ref()),
+                    }
+                    return Poll::Ready(Some(event))
+                } ,
+                SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Swarm listening on {:?}", address);
                 }
-                Some(_) => {}
-                None => return Poll::Ready(None),
+                _ => {}
             }
         }
     }
@@ -197,11 +210,16 @@ impl MyBehaviour {
         })
     }
 
-    fn poll<TEv>(
+    fn poll(
         &mut self,
         _: &mut Context,
         _: &mut impl PollParameters,
-    ) -> Poll<NetworkBehaviourAction<TEv, Event>> {
+    ) -> Poll<
+        NetworkBehaviourAction<
+            <Self as NetworkBehaviour>::OutEvent,
+            <Self as NetworkBehaviour>::ProtocolsHandler,
+        >,
+    > {
         if !self.event_buffer.is_empty() {
             return Poll::Ready(NetworkBehaviourAction::GenerateEvent(
                 self.event_buffer.remove(0),

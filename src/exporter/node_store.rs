@@ -168,10 +168,6 @@ impl NodeStore {
             .set(self.nodes.len() as u64);
     }
 
-    pub fn get_peer(&self, peer_id: &PeerId) -> Option<&Node> {
-        self.nodes.get(peer_id)
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
     }
