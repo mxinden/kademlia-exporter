@@ -1,4 +1,4 @@
-use cidr::{Cidr, Ipv4Cidr};
+use cidr::Ipv4Cidr;
 use csv::Reader;
 use std::collections::HashMap;
 use std::error::Error;
