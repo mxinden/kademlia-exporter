@@ -41,7 +41,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     .unwrap();
 
     let mut registry = Registry::default();
-    let mut sub_registry = registry.sub_registry("kademlia_exporter");
 
     let ip_db = config
         .max_mind_db_path
@@ -50,7 +49,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .cloud_provider_cidr_db_path
         .map(|path| cloud_provider_db::Db::new(path).expect("Failed to parse cloud provider db."));
     let exporter =
-        exporter::Exporter::new(config.dhts, ip_db, cloud_provider_db, &mut sub_registry)?;
+        exporter::Exporter::new(config.dhts, ip_db, cloud_provider_db, &mut registry)?;
 
     let registry = Arc::new(Mutex::new(registry));
 
