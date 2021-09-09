@@ -44,12 +44,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let ip_db = config
         .max_mind_db_path
+        .clone()
         .map(|path| maxminddb::Reader::open_readfile(path).expect("Failed to open max mind db."));
     let cloud_provider_db = config
         .cloud_provider_cidr_db_path
+        .clone()
         .map(|path| cloud_provider_db::Db::new(path).expect("Failed to parse cloud provider db."));
-    let exporter =
-        exporter::Exporter::new(config.dhts, ip_db, cloud_provider_db, &mut registry)?;
+    let exporter = exporter::Exporter::new(config, ip_db, cloud_provider_db, &mut registry)?;
 
     let registry = Arc::new(Mutex::new(registry));
 

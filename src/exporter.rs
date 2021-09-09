@@ -1,4 +1,4 @@
-use crate::{cloud_provider_db, config::DhtConfig};
+use crate::{cloud_provider_db, config::Config};
 use client::Client;
 use futures::prelude::*;
 use futures_timer::Delay;
@@ -13,7 +13,6 @@ use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
 use open_metrics_client::metrics::counter::Counter;
-use open_metrics_client::metrics::family::Family;
 use open_metrics_client::metrics::gauge::Gauge;
 use open_metrics_client::registry::Registry;
 use std::{
@@ -33,8 +32,8 @@ const TICK_INTERVAL: Duration = Duration::from_secs(1);
 
 pub(crate) struct Exporter {
     // TODO: Introduce dht id new type.
-    clients: HashMap<String, Client>,
-    node_stores: HashMap<String, NodeStore>,
+    client: Client,
+    node_store: NodeStore,
     ip_db: Option<Reader<Vec<u8>>>,
     cloud_provider_db: Option<cloud_provider_db::Db>,
     /// Set of in-flight random peer id lookups.
@@ -46,79 +45,46 @@ pub(crate) struct Exporter {
     metrics: Metrics,
     /// An exporter periodically reconnects to each discovered node to probe
     /// whether it is still online.
-    nodes_to_probe_periodically: HashMap<String, Vec<PeerId>>,
+    nodes_to_probe_periodically: Vec<PeerId>,
 }
 
 impl Exporter {
     pub(crate) fn new(
-        dhts: Vec<DhtConfig>,
+        config: Config,
         ip_db: Option<Reader<Vec<u8>>>,
         cloud_provider_db: Option<cloud_provider_db::Db>,
         registry: &mut Registry,
     ) -> Result<Self, Box<dyn Error>> {
-        let clients = dhts
-            .clone()
-            .into_iter()
-            .map(|config| {
-                let sub_registry =
-                    registry.sub_registry_with_label(("dht".into(), config.name.clone().into()));
-                (
-                    config.name.clone(),
-                    client::Client::new(config, sub_registry).unwrap(),
-                )
-            })
-            .collect();
+        let client = client::Client::new(config, registry).unwrap();
 
         let sub_registry = registry.sub_registry_with_prefix("kademlia_exporter");
 
         let metrics = Metrics::register(sub_registry);
 
         let node_store_metrics = node_store::Metrics::register(sub_registry);
-        let node_stores = dhts
-            .clone()
-            .into_iter()
-            .map(|DhtConfig { name, .. }| {
-                (
-                    name.clone(),
-                    NodeStore::new(name, node_store_metrics.clone()),
-                )
-            })
-            .collect();
-
-        let nodes_to_probe_periodically = dhts
-            .into_iter()
-            .map(|DhtConfig { name, .. }| (name, vec![]))
-            .collect();
+        let node_store = NodeStore::new(node_store_metrics.clone());
 
         Ok(Exporter {
-            clients,
+            client,
             metrics,
             ip_db,
             cloud_provider_db,
-            node_stores,
+            node_store,
 
             tick: futures_timer::Delay::new(TICK_INTERVAL),
 
             in_flight_lookups: HashMap::new(),
-            nodes_to_probe_periodically,
+            nodes_to_probe_periodically: vec![],
         })
     }
 
-    fn record_event(&mut self, name: String, event: client::Event) {
+    fn record_event(&mut self, event: client::Event) {
         match event {
             client::Event::Ping(PingEvent { peer, result }) => {
                 // Update node store.
                 match result {
-                    Ok(_) => self
-                        .node_stores
-                        .get_mut(&name)
-                        .unwrap()
-                        .observed_node(Node::new(peer.clone())),
-                    Err(_) => self
-                        .node_stores
-                        .get_mut(&name)
-                        .unwrap()
-                        .observed_down(&peer),
+                    Ok(_) => self.node_store.observed_node(Node::new(peer.clone())),
+                    Err(_) => self.node_store.observed_down(&peer),
                 }
             }
             client::Event::Identify(event) => match *event {
@@ -128,7 +94,7 @@ impl Exporter {
                     peer_id,
                     info: IdentifyInfo { listen_addrs, .. },
                 } => {
-                    self.observe_with_address(name, peer_id, listen_addrs);
+                    self.observe_with_address(peer_id, listen_addrs);
                 }
                 IdentifyEvent::Pushed { .. } => {
                     unreachable!("Exporter never pushes identify information.")
@@ -136,22 +102,22 @@ impl Exporter {
             },
             client::Event::Kademlia(event) => match *event {
                 KademliaEvent::RoutablePeer { peer, address } => {
-                    self.observe_with_address(name, peer, vec![address]);
+                    self.observe_with_address(peer, vec![address]);
                 }
                 KademliaEvent::PendingRoutablePeer { peer, address } => {
-                    self.observe_with_address(name, peer, vec![address]);
+                    self.observe_with_address(peer, vec![address]);
                 }
                 KademliaEvent::RoutingUpdated {
                     peer, addresses, ..
                 } => {
-                    self.observe_with_address(name, peer, addresses.into_vec());
+                    self.observe_with_address(peer, addresses.into_vec());
                 }
                 _ => {}
             },
         }
     }
 
-    fn observe_with_address(&mut self, name: String, peer: PeerId, addresses: Vec<Multiaddr>) {
+    fn observe_with_address(&mut self, peer: PeerId, addresses: Vec<Multiaddr>) {
         let mut node = Node::new(peer);
         if let Some(country) = self.multiaddresses_to_country_code(addresses.iter()) {
             node = node.with_country(country);
@@ -159,7 +125,7 @@ impl Exporter {
         if let Some(provider) = self.multiaddresses_to_cloud_provider(addresses.iter()) {
             node = node.with_cloud_provider(provider);
         }
-        self.node_stores.get_mut(&name).unwrap().observed_node(node);
+        self.node_store.observed_node(node);
     }
 
     fn multiaddresses_to_cloud_provider<'a>(
@@ -233,98 +199,63 @@ impl Future for Exporter {
         if let Poll::Ready(()) = this.tick.poll_unpin(ctx) {
             this.tick = Delay::new(TICK_INTERVAL);
 
-            for node_store in &mut this.node_stores.values_mut() {
-                node_store.tick();
-            }
+            this.node_store.tick();
 
-            for (dht, nodes) in &mut this.nodes_to_probe_periodically {
-                match nodes.pop() {
-                    Some(peer_id) => {
-                        info!("Checking if {:?} is still online.", &peer_id);
-                        match this.clients.get_mut(dht).unwrap().dial(&peer_id) {
-                            // New connection was established.
-                            Ok(true) => {
-                                this.metrics
-                                    .meta_node_still_online_check_triggered
-                                    .get_or_create(&vec![("dht".to_string(), dht.clone())])
-                                    .inc();
-                            }
-                            // Already connected to node.
-                            Ok(false) => {}
-                            // Connection limit reached. Retry later.
-                            Err(_) => nodes.insert(0, peer_id),
+            match this.nodes_to_probe_periodically.pop() {
+                Some(peer_id) => {
+                    info!("Checking if {:?} is still online.", &peer_id);
+                    match this.client.dial(&peer_id) {
+                        // New connection was established.
+                        Ok(true) => {
+                            this.metrics.meta_node_still_online_check_triggered.inc();
                         }
+                        // Already connected to node.
+                        Ok(false) => {}
+                        // Connection limit reached. Retry later.
+                        Err(_) => this.nodes_to_probe_periodically.insert(0, peer_id),
                     }
-                    // List is empty. Reconnected to every peer. Refill the
-                    // list.
-                    None => {
-                        nodes.append(
-                            &mut this
-                                .node_stores
-                                .get(dht)
-                                .unwrap()
-                                .iter()
-                                .map(|n| n.peer_id.clone())
-                                .collect(),
-                        );
-                    }
+                }
+                // List is empty. Reconnected to every peer. Refill the
+                // list.
+                None => {
+                    this.nodes_to_probe_periodically
+                        .append(&mut this.node_store.iter().map(|n| n.peer_id.clone()).collect());
                 }
             }
 
-            // Trigger a random lookup for each client.
-            for (name, client) in this.clients.iter_mut() {
-                this.metrics
-                    .meta_random_node_lookup_triggered
-                    .get_or_create(&vec![("dht".to_string(), name.clone())])
-                    .inc();
-                let random_peer = PeerId::random();
-                client.get_closest_peers(random_peer.clone());
-                this.in_flight_lookups.insert(random_peer, Instant::now());
-            }
+            // Trigger a random lookup.
+            this.metrics.meta_random_node_lookup_triggered.inc();
+            let random_peer = PeerId::random();
+            this.client.get_closest_peers(random_peer.clone());
+            this.in_flight_lookups.insert(random_peer, Instant::now());
 
-            for (name, client) in this.clients.iter() {
-                let info = client.network_info();
-                this.metrics
-                    .meta_libp2p_network_info_num_peers
-                    .get_or_create(&vec![("dht".to_string(), name.clone())])
-                    .set(info.num_peers().try_into().unwrap());
-                this.metrics
-                    .meta_libp2p_network_info_num_connections
-                    .get_or_create(&vec![("dht".to_string(), name.clone())])
-                    .set(info.connection_counters().num_connections().into());
-                this.metrics
-                    .meta_libp2p_network_info_num_connections_established
-                    .get_or_create(&vec![("dht".to_string(), name.clone())])
-                    .set(info.connection_counters().num_established().into());
-                this.metrics
-                    .meta_libp2p_network_info_num_connections_pending
-                    .get_or_create(&vec![("dht".to_string(), name.clone())])
-                    .set(info.connection_counters().num_pending().into());
-                this.metrics
-                    .meta_libp2p_bandwidth_inbound
-                    .get_or_create(&vec![("dht".to_string(), name.clone())])
-                    .set(client.total_inbound());
-                this.metrics
-                    .meta_libp2p_bandwidth_outbound
-                    .get_or_create(&vec![("dht".to_string(), name.clone())])
-                    .set(client.total_outbound());
-            }
+            let info = this.client.network_info();
+            this.metrics
+                .meta_libp2p_network_info_num_peers
+                .set(info.num_peers().try_into().unwrap());
+            this.metrics
+                .meta_libp2p_network_info_num_connections
+                .set(info.connection_counters().num_connections().into());
+            this.metrics
+                .meta_libp2p_network_info_num_connections_established
+                .set(info.connection_counters().num_established().into());
+            this.metrics
+                .meta_libp2p_network_info_num_connections_pending
+                .set(info.connection_counters().num_pending().into());
+            this.metrics
+                .meta_libp2p_bandwidth_inbound
+                .set(this.client.total_inbound());
+            this.metrics
+                .meta_libp2p_bandwidth_outbound
+                .set(this.client.total_outbound());
         }
 
-        let mut events = vec![];
-
-        for (name, client) in &mut this.clients {
-            loop {
-                match client.poll_next_unpin(ctx) {
-                    Poll::Ready(Some(event)) => events.push((name.clone(), event)),
-                    Poll::Ready(None) => return Poll::Ready(()),
-                    Poll::Pending => break,
-                }
+        loop {
+            match this.client.poll_next_unpin(ctx) {
+                Poll::Ready(Some(event)) => this.record_event(event),
+                Poll::Ready(None) => return Poll::Ready(()),
+                Poll::Pending => break,
             }
-        }
-
-        for (name, event) in events {
-            this.record_event(name, event);
         }
 
         Poll::Pending
@@ -332,68 +263,68 @@ impl Future for Exporter {
 }
 
 struct Metrics {
-    meta_random_node_lookup_triggered: Family<Vec<(String, String)>, Counter>,
-    meta_node_still_online_check_triggered: Family<Vec<(String, String)>, Counter>,
-    meta_libp2p_network_info_num_peers: Family<Vec<(String, String)>, Gauge>,
-    meta_libp2p_network_info_num_connections: Family<Vec<(String, String)>, Gauge>,
-    meta_libp2p_network_info_num_connections_pending: Family<Vec<(String, String)>, Gauge>,
-    meta_libp2p_network_info_num_connections_established: Family<Vec<(String, String)>, Gauge>,
-    meta_libp2p_bandwidth_inbound: Family<Vec<(String, String)>, Gauge>,
-    meta_libp2p_bandwidth_outbound: Family<Vec<(String, String)>, Gauge>,
+    meta_random_node_lookup_triggered: Counter,
+    meta_node_still_online_check_triggered: Counter,
+    meta_libp2p_network_info_num_peers: Gauge,
+    meta_libp2p_network_info_num_connections: Gauge,
+    meta_libp2p_network_info_num_connections_pending: Gauge,
+    meta_libp2p_network_info_num_connections_established: Gauge,
+    meta_libp2p_bandwidth_inbound: Gauge,
+    meta_libp2p_bandwidth_outbound: Gauge,
 }
 
 impl Metrics {
     fn register(registry: &mut Registry) -> Metrics {
-        let meta_random_node_lookup_triggered = Family::default();
+        let meta_random_node_lookup_triggered = Counter::default();
         registry.register(
             "meta_random_node_lookup_triggered",
             "Number of times a random Kademlia node lookup was triggered",
             Box::new(meta_random_node_lookup_triggered.clone()),
         );
 
-        let meta_node_still_online_check_triggered = Family::default();
+        let meta_node_still_online_check_triggered = Counter::default();
         registry.register(
             "meta_node_still_online_check_triggered",
             "Number of times a connection to a node was established to ensure it is still online",
             Box::new(meta_node_still_online_check_triggered.clone()),
         );
 
-        let meta_libp2p_network_info_num_peers = Family::default();
+        let meta_libp2p_network_info_num_peers = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_peers",
             "The total number of connected peers",
             Box::new(meta_libp2p_network_info_num_peers.clone()),
         );
 
-        let meta_libp2p_network_info_num_connections = Family::default();
+        let meta_libp2p_network_info_num_connections = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_connections",
             "The total number of connections, both established and pending",
             Box::new(meta_libp2p_network_info_num_peers.clone()),
         );
 
-        let meta_libp2p_network_info_num_connections_pending = Family::default();
+        let meta_libp2p_network_info_num_connections_pending = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_connections_pending",
             "The total number of pending connections, both incoming and outgoing",
             Box::new(meta_libp2p_network_info_num_connections_pending.clone()),
         );
 
-        let meta_libp2p_network_info_num_connections_established = Family::default();
+        let meta_libp2p_network_info_num_connections_established = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_connections_established",
             "The total number of established connections",
             Box::new(meta_libp2p_network_info_num_connections_established.clone()),
         );
 
-        let meta_libp2p_bandwidth_inbound = Family::default();
+        let meta_libp2p_bandwidth_inbound = Gauge::default();
         registry.register(
             "meta_libp2p_bandwidth_inbound",
             "The total number of bytes received on the socket",
             Box::new(meta_libp2p_bandwidth_inbound.clone()),
         );
 
-        let meta_libp2p_bandwidth_outbound = Family::default();
+        let meta_libp2p_bandwidth_outbound = Gauge::default();
         registry.register(
             "meta_libp2p_bandwidth_outbound",
             "The total number of bytes sent on the socket",

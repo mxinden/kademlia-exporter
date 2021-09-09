@@ -11,16 +11,14 @@ use std::{
 
 /// Stores information about a set of nodes for a single Dht.
 pub struct NodeStore {
-    dht: String,
     nodes: HashMap<PeerId, Node>,
 
     metrics: Metrics,
 }
 
 impl NodeStore {
-    pub fn new(dht: String, metrics: Metrics) -> Self {
+    pub fn new(metrics: Metrics) -> Self {
         NodeStore {
-            dht,
             nodes: HashMap::new(),
             metrics,
         }
@@ -37,7 +35,9 @@ impl NodeStore {
     }
 
     pub fn observed_down(&mut self, peer_id: &PeerId) {
-        self.nodes.get_mut(peer_id).unwrap().up_since = None;
+        if let Some(peer) = self.nodes.get_mut(peer_id) {
+            peer.up_since = None;
+        }
     }
 
     pub fn tick(&mut self) {
@@ -49,7 +49,6 @@ impl NodeStore {
             .retain(|_, n| (Instant::now() - n.last_seen) < Duration::from_secs(60 * 60 * 12));
         self.metrics
             .meta_offline_nodes_removed
-            .get_or_create(&vec![("dht".to_string(), self.dht.clone())])
             .inc_by((length - self.nodes.len()).try_into().unwrap());
     }
 
@@ -95,7 +94,6 @@ impl NodeStore {
                 self.metrics
                     .nodes_seen_within
                     .get_or_create(&vec![
-                        ("dht".to_string(), self.dht.clone()),
                         ("country".to_string(), country.clone()),
                         ("cloud_provider".to_string(), provider.clone()),
                         ("last_seen_within".to_string(), last_seen_within.clone()),
@@ -153,7 +151,6 @@ impl NodeStore {
                 self.metrics
                     .nodes_up_since
                     .get_or_create(&vec![
-                        ("dht".to_string(), self.dht.clone()),
                         ("country".to_string(), country.clone()),
                         ("cloud_provider".to_string(), provider.clone()),
                         ("up_since".to_string(), up_since.clone()),
@@ -162,10 +159,7 @@ impl NodeStore {
             }
         }
 
-        self.metrics
-            .meta_nodes_total
-            .get_or_create(&vec![("dht".to_string(), self.dht.clone())])
-            .set(self.nodes.len() as u64);
+        self.metrics.meta_nodes_total.set(self.nodes.len() as u64);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Node> {
@@ -217,8 +211,8 @@ pub struct Metrics {
     nodes_seen_within: Family<Vec<(String, String)>, Gauge>,
     nodes_up_since: Family<Vec<(String, String)>, Gauge>,
 
-    meta_offline_nodes_removed: Family<Vec<(String, String)>, Counter>,
-    meta_nodes_total: Family<Vec<(String, String)>, Gauge>,
+    meta_offline_nodes_removed: Counter,
+    meta_nodes_total: Gauge,
 }
 
 impl Metrics {
@@ -239,15 +233,14 @@ impl Metrics {
         );
         // &["dht", "country", "cloud_provider", "up_since"],
 
-        let meta_offline_nodes_removed = Family::default();
+        let meta_offline_nodes_removed = Counter::default();
         registry.register(
             "meta_offline_nodes_removed",
             "Number of nodes removed due to being offline longer than 12h",
             Box::new(meta_offline_nodes_removed.clone()),
         );
-        // &["dht"],
 
-        let meta_nodes_total = Family::default();
+        let meta_nodes_total = Gauge::default();
         registry.register(
             "meta_nodes_total",
             "Number of nodes tracked",
