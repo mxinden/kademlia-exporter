@@ -1,4 +1,4 @@
-use crate::config::DhtConfig;
+use crate::config::Config;
 use futures::executor::block_on;
 use futures::prelude::*;
 use futures::ready;
@@ -22,6 +22,7 @@ use libp2p::{
     },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
+use open_metrics_client::registry::Registry;
 use std::sync::Arc;
 use std::{
     error::Error,
@@ -31,7 +32,6 @@ use std::{
     time::Duration,
     usize,
 };
-use open_metrics_client::registry::Registry;
 
 mod global_only;
 
@@ -42,7 +42,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(config: DhtConfig, registry: &mut Registry) -> Result<Client, Box<dyn Error>> {
+    pub fn new(config: Config, registry: &mut Registry) -> Result<Client, Box<dyn Error>> {
         // Create a random key for ourselves.
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -127,8 +127,8 @@ impl Stream for Client {
                         Event::Identify(e) => self.metrics.record(e.as_ref()),
                         Event::Kademlia(e) => self.metrics.record(e.as_ref()),
                     }
-                    return Poll::Ready(Some(event))
-                } ,
+                    return Poll::Ready(Some(event));
+                }
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Swarm listening on {:?}", address);
                 }
