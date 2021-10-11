@@ -588,9 +588,9 @@ dependencies = [
 
 [[package]]
 name = "cidr"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ea3dadc3ce0a7de6d7d8fcefc83474c9a26050d7ad4bb032716c0f818e030ee"
+checksum = "300bccc729b1ada84523246038aad61fead689ac362bb9d44beea6f6a188c34b"
 
 [[package]]
 name = "cipher"
