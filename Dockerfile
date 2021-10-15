@@ -1,6 +1,6 @@
 # Build container
 
-FROM rustlang/rust:nightly as build
+FROM rustlang/rust:nightly-bullseye as build
 
 COPY ./ ./
 
@@ -13,7 +13,7 @@ RUN cp target/release/kademlia-exporter /build-out/
 
 # Final container
 
-FROM ubuntu
+FROM debian:bullseye-slim
 
 COPY --from=build /build-out/kademlia-exporter /
 
