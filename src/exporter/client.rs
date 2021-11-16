@@ -17,8 +17,8 @@ use libp2p::{
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     swarm::{
-        DialError, NetworkBehaviour, NetworkBehaviourAction, NetworkBehaviourEventProcess,
-        PollParameters, SwarmBuilder, SwarmEvent,
+        DialError, NetworkBehaviour, NetworkBehaviourAction, PollParameters, SwarmBuilder,
+        SwarmEvent,
     },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
@@ -53,7 +53,16 @@ impl Client {
             config.protocol_name,
         )?;
         let (transport, bandwidth_sinks) = build_transport(local_key, config.noise_legacy);
-        let mut swarm = SwarmBuilder::new(transport, behaviour, local_peer_id).build();
+        let mut swarm = {
+            let mut builder =
+                SwarmBuilder::new(transport, behaviour, local_peer_id).executor(Box::new(|fut| {
+                    async_std::task::spawn(fut);
+                }));
+            if let Some(dial_concurrency_factor) = config.dial_concurrency_factor {
+                builder = builder.dial_concurrency_factor(dial_concurrency_factor);
+            }
+            builder.build()
+        };
 
         let addr = match config.listen_address {
             Some(addr) => Multiaddr::empty()
@@ -230,21 +239,21 @@ impl MyBehaviour {
     }
 }
 
-impl NetworkBehaviourEventProcess<PingEvent> for MyBehaviour {
-    fn inject_event(&mut self, event: PingEvent) {
-        self.event_buffer.push(Event::Ping(event));
+impl From<PingEvent> for Event {
+    fn from(event: PingEvent) -> Self {
+        Event::Ping(event)
     }
 }
 
-impl NetworkBehaviourEventProcess<IdentifyEvent> for MyBehaviour {
-    fn inject_event(&mut self, event: IdentifyEvent) {
-        self.event_buffer.push(Event::Identify(Box::new(event)));
+impl From<IdentifyEvent> for Event {
+    fn from(event: IdentifyEvent) -> Self {
+        Event::Identify(Box::new(event))
     }
 }
 
-impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour {
-    fn inject_event(&mut self, event: KademliaEvent) {
-        self.event_buffer.push(Event::Kademlia(Box::new(event)));
+impl From<KademliaEvent> for Event {
+    fn from(event: KademliaEvent) -> Self {
+        Event::Kademlia(Box::new(event))
     }
 }
 
