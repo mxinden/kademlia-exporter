@@ -104,7 +104,7 @@ impl Client {
         if Swarm::is_connected(&mut self.swarm, peer_id) {
             Ok(false)
         } else {
-            Swarm::dial(&mut self.swarm, peer_id)?;
+            self.swarm.dial(*peer_id)?;
             Ok(true)
         }
     }
