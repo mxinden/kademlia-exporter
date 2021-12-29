@@ -3,7 +3,7 @@ use client::Client;
 use futures::prelude::*;
 use futures_timer::Delay;
 use libp2p::{
-    identify::{IdentifyEvent, IdentifyInfo},
+    identify::IdentifyEvent,
     kad::KademliaEvent,
     multiaddr::{Multiaddr, Protocol},
     ping::PingEvent,
@@ -90,11 +90,10 @@ impl Exporter {
             client::Event::Identify(event) => match *event {
                 IdentifyEvent::Error { .. } => {}
                 IdentifyEvent::Sent { .. } => {}
-                IdentifyEvent::Received {
-                    peer_id,
-                    info: IdentifyInfo { listen_addrs, .. },
-                } => {
-                    self.observe_with_address(peer_id, listen_addrs);
+                IdentifyEvent::Received { peer_id, info } => {
+                    self.observe_with_address(peer_id, info.listen_addrs.clone());
+                    self.node_store
+                        .observed_node(Node::new(peer_id).with_identify_info(info));
                 }
                 IdentifyEvent::Pushed { .. } => {
                     unreachable!("Exporter never pushes identify information.")

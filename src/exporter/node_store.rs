@@ -1,4 +1,5 @@
 use libp2p::PeerId;
+use open_metrics_client::encoding::text::Encode;
 use open_metrics_client::metrics::counter::Counter;
 use open_metrics_client::metrics::family::Family;
 use open_metrics_client::metrics::gauge::Gauge;
@@ -6,6 +7,7 @@ use open_metrics_client::registry::Registry;
 use std::{
     collections::HashMap,
     convert::TryInto,
+    sync::atomic::Ordering,
     time::{Duration, Instant},
 };
 
@@ -26,8 +28,31 @@ impl NodeStore {
 
     /// Record observation of a specific node.
     pub fn observed_node(&mut self, node: Node) {
+        if let Some(new_info) = node.identify_info.as_ref() {
+            if let Some(old_info) = self
+                .nodes
+                .get(&node.peer_id)
+                .as_ref()
+                .and_then(|n| n.identify_info.clone())
+            {
+                self.metrics
+                    .identify
+                    .get_or_create(&old_info.into())
+                    .inner()
+                    // TODO: Use `Gauge::dec` with `open-metrics-client` `v0.14.0`.
+                    .fetch_sub(1, Ordering::Relaxed);
+            }
+
+            self.metrics
+                .identify
+                .get_or_create(&new_info.clone().into())
+                .inc();
+        }
+
         match self.nodes.get_mut(&node.peer_id) {
-            Some(n) => n.merge(node),
+            Some(n) => {
+                n.merge(node);
+            }
             None => {
                 self.nodes.insert(node.peer_id.clone(), node);
             }
@@ -173,6 +198,7 @@ pub struct Node {
     pub provider: Option<String>,
     last_seen: Instant,
     up_since: Option<Instant>,
+    identify_info: Option<libp2p::identify::IdentifyInfo>,
 }
 
 impl Node {
@@ -183,6 +209,7 @@ impl Node {
             provider: None,
             last_seen: Instant::now(),
             up_since: Some(Instant::now()),
+            identify_info: None,
         }
     }
 
@@ -196,9 +223,18 @@ impl Node {
         self
     }
 
+    pub fn with_identify_info(mut self, info: libp2p::identify::IdentifyInfo) -> Self {
+        self.identify_info = Some(info);
+        self
+    }
+
     fn merge(&mut self, other: Node) {
         self.country = self.country.take().or(other.country);
         self.up_since = self.up_since.take().or(other.up_since);
+
+        if let Some(info) = other.identify_info {
+            self.identify_info = Some(info);
+        }
 
         if self.last_seen < other.last_seen {
             self.last_seen = other.last_seen;
@@ -211,8 +247,27 @@ pub struct Metrics {
     nodes_seen_within: Family<Vec<(String, String)>, Gauge>,
     nodes_up_since: Family<Vec<(String, String)>, Gauge>,
 
+    identify: Family<IdentifyLabels, Gauge>,
+
     meta_offline_nodes_removed: Counter,
     meta_nodes_total: Gauge,
+}
+
+#[derive(Encode, Clone, PartialEq, Hash, Eq)]
+struct IdentifyLabels {
+    protocols: String,
+    protocol_version: String,
+    agent_version: String,
+}
+
+impl From<libp2p::identify::IdentifyInfo> for IdentifyLabels {
+    fn from(info: libp2p::identify::IdentifyInfo) -> Self {
+        Self {
+            protocols: info.protocols.join(","),
+            protocol_version: info.protocol_version,
+            agent_version: info.agent_version,
+        }
+    }
 }
 
 impl Metrics {
@@ -223,7 +278,6 @@ impl Metrics {
             "Unique nodes discovered within the time bound through the Dht",
             Box::new(nodes_seen_within.clone()),
         );
-        // &["dht", "country", "cloud_provider", "last_seen_within"],
 
         let nodes_up_since = Family::default();
         registry.register(
@@ -231,7 +285,13 @@ impl Metrics {
             "Unique nodes discovered through the Dht and up since timebound",
             Box::new(nodes_up_since.clone()),
         );
-        // &["dht", "country", "cloud_provider", "up_since"],
+
+        let identify = Family::default();
+        registry.register(
+            "identify",
+            "Identify protocol info",
+            Box::new(identify.clone()),
+        );
 
         let meta_offline_nodes_removed = Counter::default();
         registry.register(
@@ -250,6 +310,8 @@ impl Metrics {
         Metrics {
             nodes_seen_within,
             nodes_up_since,
+
+            identify,
 
             meta_offline_nodes_removed,
             meta_nodes_total,
