@@ -261,11 +261,28 @@ struct IdentifyLabels {
 }
 
 impl From<libp2p::identify::IdentifyInfo> for IdentifyLabels {
-    fn from(info: libp2p::identify::IdentifyInfo) -> Self {
+    fn from(mut info: libp2p::identify::IdentifyInfo) -> Self {
+        info.protocols.sort();
+        let re = regex::Regex::new(r"^[a-zA-Z0-9\.\-_/]*$").unwrap();
         Self {
-            protocols: info.protocols.join(","),
-            protocol_version: info.protocol_version,
-            agent_version: info.agent_version,
+            protocols: info
+                .protocols
+                .into_iter()
+                .filter(|p| re.is_match(p))
+                .intersperse(",".to_string())
+                .collect(),
+            protocol_version: if re.is_match(info.protocol_version.as_str()) {
+                info.protocol_version
+            } else {
+                println!("{:?}", info.protocol_version);
+                "invalid-protocol-version".to_string()
+            },
+            agent_version: if re.is_match(info.agent_version.as_str()) {
+                info.agent_version
+            } else {
+                println!("{:?}", info.agent_version);
+                "invalid-agent-version".to_string()
+            },
         }
     }
 }

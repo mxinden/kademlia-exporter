@@ -1,4 +1,5 @@
 #![feature(ip)]
+#![feature(iter_intersperse)]
 
 use async_std::task;
 use open_metrics_client::encoding::text::encode;

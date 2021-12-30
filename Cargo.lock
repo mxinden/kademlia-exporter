@@ -1386,7 +1386,7 @@ dependencies = [
 
 [[package]]
 name = "kademlia-exporter"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-std",
  "cidr",
@@ -1400,6 +1400,7 @@ dependencies = [
  "log",
  "maxminddb",
  "open-metrics-client",
+ "regex",
  "serde",
  "serde_derive",
  "structopt",
