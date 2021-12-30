@@ -123,7 +123,7 @@ impl Client {
 }
 
 impl Stream for Client {
-    type Item = Event;
+    type Item = ClientEvent;
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
         loop {
             let event = ready!(self.swarm.poll_next_unpin(ctx)).expect("Infinite stream.");
@@ -136,15 +136,27 @@ impl Stream for Client {
                         Event::Identify(e) => self.metrics.record(e.as_ref()),
                         Event::Kademlia(e) => self.metrics.record(e.as_ref()),
                     }
-                    return Poll::Ready(Some(event));
+                    return Poll::Ready(Some(ClientEvent::Behaviour(event)));
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Swarm listening on {:?}", address);
+                }
+                SwarmEvent::ConnectionClosed {
+                    peer_id,
+                    num_established,
+                    ..
+                } if num_established == 0 => {
+                    return Poll::Ready(Some(ClientEvent::AllConnectionsClosed(peer_id)));
                 }
                 _ => {}
             }
         }
     }
+}
+
+pub enum ClientEvent {
+    Behaviour(Event),
+    AllConnectionsClosed(PeerId),
 }
 
 #[derive(NetworkBehaviour)]

@@ -78,16 +78,16 @@ impl Exporter {
         })
     }
 
-    fn record_event(&mut self, event: client::Event) {
+    fn record_event(&mut self, event: client::ClientEvent) {
         match event {
-            client::Event::Ping(PingEvent { peer, result }) => {
+            client::ClientEvent::Behaviour(client::Event::Ping(PingEvent { peer, result })) => {
                 // Update node store.
                 match result {
                     Ok(_) => self.node_store.observed_node(Node::new(peer.clone())),
                     Err(_) => self.node_store.observed_down(&peer),
                 }
             }
-            client::Event::Identify(event) => match *event {
+            client::ClientEvent::Behaviour(client::Event::Identify(event)) => match *event {
                 IdentifyEvent::Error { .. } => {}
                 IdentifyEvent::Sent { .. } => {}
                 IdentifyEvent::Received { peer_id, info } => {
@@ -99,7 +99,7 @@ impl Exporter {
                     unreachable!("Exporter never pushes identify information.")
                 }
             },
-            client::Event::Kademlia(event) => match *event {
+            client::ClientEvent::Behaviour(client::Event::Kademlia(event)) => match *event {
                 KademliaEvent::RoutablePeer { peer, address } => {
                     self.observe_with_address(peer, vec![address]);
                 }
@@ -113,6 +113,9 @@ impl Exporter {
                 }
                 _ => {}
             },
+            client::ClientEvent::AllConnectionsClosed(peer_id) => {
+                self.node_store.observed_down(&peer_id);
+            }
         }
     }
 
