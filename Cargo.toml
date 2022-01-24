@@ -23,7 +23,7 @@ ctrlc = "3.2.1"
 structopt = "0.3.26"
 futures-timer = "3.0.2"
 maxminddb = "0.21.0"
-serde = "1.0.133"
+serde = "1.0.135"
 serde_derive = "1.0.125"
 toml = "0.5.8"
 
