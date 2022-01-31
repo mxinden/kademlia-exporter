@@ -54,6 +54,10 @@ impl<T: Transport> Transport for GlobalIpOnly<T> {
         }
     }
 
+    fn dial_as_listener(self, addr: Multiaddr) -> Result<Self::Dial, TransportError<Self::Error>> {
+        self.inner.dial_as_listener(addr)
+    }
+
     fn address_translation(&self, listen: &Multiaddr, observed: &Multiaddr) -> Option<Multiaddr> {
         self.inner.address_translation(listen, observed)
     }
