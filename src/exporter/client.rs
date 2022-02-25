@@ -6,8 +6,8 @@ use libp2p::bandwidth::BandwidthSinks;
 use libp2p::TransportExt;
 use libp2p::{
     core::{
-        self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox,
-        network::NetworkInfo, transport::Boxed, transport::Transport, upgrade, Multiaddr,
+        self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed,
+        transport::Transport, upgrade, Multiaddr,
     },
     dns,
     identify::{Identify, IdentifyConfig, IdentifyEvent},
@@ -17,12 +17,12 @@ use libp2p::{
     mplex, noise,
     ping::{Ping, PingConfig, PingEvent},
     swarm::{
-        DialError, NetworkBehaviour, NetworkBehaviourAction, PollParameters, SwarmBuilder,
-        SwarmEvent,
+        DialError, NetworkBehaviour, NetworkBehaviourAction, NetworkInfo, PollParameters,
+        SwarmBuilder, SwarmEvent,
     },
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
-use open_metrics_client::registry::Registry;
+use prometheus_client::registry::Registry;
 use std::sync::Arc;
 use std::{
     error::Error,
@@ -238,7 +238,7 @@ impl MyBehaviour {
     ) -> Poll<
         NetworkBehaviourAction<
             <Self as NetworkBehaviour>::OutEvent,
-            <Self as NetworkBehaviour>::ProtocolsHandler,
+            <Self as NetworkBehaviour>::ConnectionHandler,
         >,
     > {
         if !self.event_buffer.is_empty() {

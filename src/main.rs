@@ -3,8 +3,8 @@
 #![feature(hash_drain_filter)]
 
 use async_std::task;
-use open_metrics_client::encoding::text::encode;
-use open_metrics_client::registry::Registry;
+use prometheus_client::encoding::text::encode;
+use prometheus_client::registry::Registry;
 use std::{
     error::Error,
     path::PathBuf,

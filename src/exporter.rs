@@ -12,9 +12,9 @@ use libp2p::{
 use log::info;
 use maxminddb::{geoip2, Reader};
 use node_store::{Node, NodeStore};
-use open_metrics_client::metrics::counter::Counter;
-use open_metrics_client::metrics::gauge::Gauge;
-use open_metrics_client::registry::Registry;
+use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::gauge::Gauge;
+use prometheus_client::registry::Registry;
 use std::{
     collections::HashMap,
     convert::TryInto,
