@@ -1,4 +1,5 @@
-use libp2p::PeerId;
+use libp2p::multiaddr::Protocol;
+use libp2p::{Multiaddr, PeerId};
 use prometheus_client::encoding::text::Encode;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
@@ -278,6 +279,7 @@ struct IdentifyLabels {
     protocols: String,
     protocol_version: String,
     agent_version: String,
+    listen_protocol_stacks: String,
 }
 
 impl From<libp2p::identify::IdentifyInfo> for IdentifyLabels {
@@ -303,7 +305,55 @@ impl From<libp2p::identify::IdentifyInfo> for IdentifyLabels {
                 println!("{:?}", info.agent_version);
                 "invalid-agent-version".to_string()
             },
+            listen_protocol_stacks: info
+                .listen_addrs
+                .into_iter()
+                .map(|a| ProtocolStack::from(a).0)
+                .intersperse(",".to_string())
+                .collect(),
         }
+    }
+}
+
+struct ProtocolStack(String);
+
+impl From<Multiaddr> for ProtocolStack {
+    fn from(address: Multiaddr) -> Self {
+        Self(
+            address
+                .into_iter()
+                .map(|p| match p {
+                    Protocol::Dccp(_) => "dccp",
+                    Protocol::Dns(_) => "dns",
+                    Protocol::Dns4(_) => "dns4",
+                    Protocol::Dns6(_) => "dns6",
+                    Protocol::Dnsaddr(_) => "dnsaddr",
+                    Protocol::Http => "http",
+                    Protocol::Https => "https",
+                    Protocol::Ip4(_) => "ip4",
+                    Protocol::Ip6(_) => "ip6",
+                    Protocol::P2pWebRtcDirect => "p2pwebrtcdirect",
+                    Protocol::P2pWebRtcStar => "p2pwebrtcstar",
+                    Protocol::P2pWebSocketStar => "p2pwebsocketstar",
+                    Protocol::Memory(_) => "memory",
+                    Protocol::Onion(_, _) => "onion",
+                    Protocol::Onion3(_) => "onion3",
+                    Protocol::P2p(_) => "p2p",
+                    Protocol::P2pCircuit => "p2pcircuit",
+                    Protocol::Quic => "quic",
+                    Protocol::Sctp(_) => "sctp",
+                    Protocol::Tcp(_) => "tcp",
+                    Protocol::Tls => "tls",
+                    Protocol::Udp(_) => "udp",
+                    Protocol::Udt => "udt",
+                    Protocol::Unix(_) => "unix",
+                    Protocol::Utp => "utp",
+                    Protocol::Ws(_) => "ws",
+                    Protocol::Wss(_) => "wss",
+                })
+                .intersperse("/")
+                .collect(),
+        )
     }
 }
 
