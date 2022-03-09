@@ -81,7 +81,7 @@ impl NodeStore {
         // Remove old offline nodes.
         let length = self.nodes.len();
         let removed = self.nodes.drain_filter(|_, n| {
-            (Instant::now() - n.last_seen) < Duration::from_secs(60 * 60 * 12)
+            (Instant::now() - n.last_seen) > Duration::from_secs(60 * 60 * 12)
         });
         for (_, node) in removed {
             if let Some(old_info) = node.identify_info.clone() {
@@ -285,6 +285,7 @@ struct IdentifyLabels {
 impl From<libp2p::identify::IdentifyInfo> for IdentifyLabels {
     fn from(mut info: libp2p::identify::IdentifyInfo) -> Self {
         info.protocols.sort();
+        info.listen_addrs.sort();
         let re = regex::Regex::new(r"^[a-zA-Z0-9\.\-_/]*$").unwrap();
         Self {
             protocols: info
