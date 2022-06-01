@@ -25,11 +25,14 @@ impl<T: Transport> Transport for GlobalIpOnly<T> {
     type ListenerUpgrade = <T as Transport>::ListenerUpgrade;
     type Dial = <T as Transport>::Dial;
 
-    fn listen_on(self, addr: Multiaddr) -> Result<Self::Listener, TransportError<Self::Error>> {
+    fn listen_on(
+        &mut self,
+        addr: Multiaddr,
+    ) -> Result<Self::Listener, TransportError<Self::Error>> {
         self.inner.listen_on(addr)
     }
 
-    fn dial(self, addr: Multiaddr) -> Result<Self::Dial, TransportError<Self::Error>> {
+    fn dial(&mut self, addr: Multiaddr) -> Result<Self::Dial, TransportError<Self::Error>> {
         match addr.iter().next() {
             Some(Protocol::Ip4(a)) => {
                 if a.is_global() {
@@ -54,7 +57,10 @@ impl<T: Transport> Transport for GlobalIpOnly<T> {
         }
     }
 
-    fn dial_as_listener(self, addr: Multiaddr) -> Result<Self::Dial, TransportError<Self::Error>> {
+    fn dial_as_listener(
+        &mut self,
+        addr: Multiaddr,
+    ) -> Result<Self::Dial, TransportError<Self::Error>> {
         self.inner.dial_as_listener(addr)
     }
 
