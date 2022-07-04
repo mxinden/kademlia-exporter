@@ -92,8 +92,7 @@ impl Exporter {
                 IdentifyEvent::Sent { .. } => {}
                 IdentifyEvent::Received { peer_id, info } => {
                     self.observe_with_address(peer_id, info.listen_addrs.clone());
-                    self.node_store
-                        .observed_node(Node::new(peer_id).with_identify_info(info));
+                    self.node_store.observed_node(Node::new(peer_id));
                 }
                 IdentifyEvent::Pushed { .. } => {
                     unreachable!("Exporter never pushes identify information.")

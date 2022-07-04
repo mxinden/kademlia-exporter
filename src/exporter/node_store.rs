@@ -1,6 +1,4 @@
-use libp2p::multiaddr::Protocol;
-use libp2p::{Multiaddr, PeerId};
-use prometheus_client::encoding::text::Encode;
+use libp2p::PeerId;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::gauge::Gauge;
@@ -8,7 +6,6 @@ use prometheus_client::registry::Registry;
 use std::{
     collections::HashMap,
     convert::TryInto,
-    sync::atomic::Ordering,
     time::{Duration, Instant},
 };
 
@@ -29,27 +26,6 @@ impl NodeStore {
 
     /// Record observation of a specific node.
     pub fn observed_node(&mut self, node: Node) {
-        if let Some(new_info) = node.identify_info.as_ref() {
-            if let Some(old_info) = self
-                .nodes
-                .get(&node.peer_id)
-                .as_ref()
-                .and_then(|n| n.identify_info.clone())
-            {
-                self.metrics
-                    .identify
-                    .get_or_create(&old_info.into())
-                    .inner()
-                    // TODO: Use `Gauge::dec` with `open-metrics-client` `v0.14.0`.
-                    .fetch_sub(1, Ordering::Relaxed);
-            }
-
-            self.metrics
-                .identify
-                .get_or_create(&new_info.clone().into())
-                .inc();
-        }
-
         match self.nodes.get_mut(&node.peer_id) {
             Some(n) => {
                 n.merge(node);
@@ -62,15 +38,6 @@ impl NodeStore {
 
     pub fn observed_down(&mut self, peer_id: &PeerId) {
         if let Some(peer) = self.nodes.get_mut(peer_id) {
-            if let Some(info) = peer.identify_info.take() {
-                self.metrics
-                    .identify
-                    .get_or_create(&info.into())
-                    .inner()
-                    // TODO: Use `Gauge::dec` with `open-metrics-client` `v0.14.0`.
-                    .fetch_sub(1, Ordering::Relaxed);
-            }
-
             peer.up_since = None;
         }
     }
@@ -80,19 +47,9 @@ impl NodeStore {
 
         // Remove old offline nodes.
         let length = self.nodes.len();
-        let removed = self.nodes.drain_filter(|_, n| {
+        self.nodes.drain_filter(|_, n| {
             (Instant::now() - n.last_seen) > Duration::from_secs(60 * 60 * 12)
         });
-        for (_, node) in removed {
-            if let Some(old_info) = node.identify_info.clone() {
-                self.metrics
-                    .identify
-                    .get_or_create(&old_info.into())
-                    .inner()
-                    // TODO: Use `Gauge::dec` with `open-metrics-client` `v0.14.0`.
-                    .fetch_sub(1, Ordering::Relaxed);
-            }
-        }
         self.metrics
             .meta_offline_nodes_removed
             .inc_by((length - self.nodes.len()).try_into().unwrap());
@@ -219,7 +176,6 @@ pub struct Node {
     pub provider: Option<String>,
     last_seen: Instant,
     up_since: Option<Instant>,
-    identify_info: Option<libp2p::identify::IdentifyInfo>,
 }
 
 impl Node {
@@ -230,7 +186,6 @@ impl Node {
             provider: None,
             last_seen: Instant::now(),
             up_since: Some(Instant::now()),
-            identify_info: None,
         }
     }
 
@@ -244,18 +199,9 @@ impl Node {
         self
     }
 
-    pub fn with_identify_info(mut self, info: libp2p::identify::IdentifyInfo) -> Self {
-        self.identify_info = Some(info);
-        self
-    }
-
     fn merge(&mut self, other: Node) {
         self.country = self.country.take().or(other.country);
         self.up_since = self.up_since.take().or(other.up_since);
-
-        if let Some(info) = other.identify_info {
-            self.identify_info = Some(info);
-        }
 
         if self.last_seen < other.last_seen {
             self.last_seen = other.last_seen;
@@ -268,94 +214,8 @@ pub struct Metrics {
     nodes_seen_within: Family<Vec<(String, String)>, Gauge>,
     nodes_up_since: Family<Vec<(String, String)>, Gauge>,
 
-    identify: Family<IdentifyLabels, Gauge>,
-
     meta_offline_nodes_removed: Counter,
     meta_nodes_total: Gauge,
-}
-
-#[derive(Encode, Clone, PartialEq, Hash, Eq)]
-struct IdentifyLabels {
-    protocols: String,
-    protocol_version: String,
-    agent_version: String,
-    listen_protocol_stacks: String,
-}
-
-impl From<libp2p::identify::IdentifyInfo> for IdentifyLabels {
-    fn from(mut info: libp2p::identify::IdentifyInfo) -> Self {
-        info.protocols.sort();
-        info.listen_addrs.sort();
-        let re = regex::Regex::new(r"^[a-zA-Z0-9\.\-_/]*$").unwrap();
-        Self {
-            protocols: info
-                .protocols
-                .into_iter()
-                .filter(|p| re.is_match(p))
-                .intersperse(",".to_string())
-                .collect(),
-            protocol_version: if re.is_match(info.protocol_version.as_str()) {
-                info.protocol_version
-            } else {
-                println!("{:?}", info.protocol_version);
-                "invalid-protocol-version".to_string()
-            },
-            agent_version: if re.is_match(info.agent_version.as_str()) {
-                info.agent_version
-            } else {
-                println!("{:?}", info.agent_version);
-                "invalid-agent-version".to_string()
-            },
-            listen_protocol_stacks: info
-                .listen_addrs
-                .into_iter()
-                .map(|a| ProtocolStack::from(a).0)
-                .intersperse(",".to_string())
-                .collect(),
-        }
-    }
-}
-
-struct ProtocolStack(String);
-
-impl From<Multiaddr> for ProtocolStack {
-    fn from(address: Multiaddr) -> Self {
-        Self(
-            address
-                .into_iter()
-                .map(|p| match p {
-                    Protocol::Dccp(_) => "dccp",
-                    Protocol::Dns(_) => "dns",
-                    Protocol::Dns4(_) => "dns4",
-                    Protocol::Dns6(_) => "dns6",
-                    Protocol::Dnsaddr(_) => "dnsaddr",
-                    Protocol::Http => "http",
-                    Protocol::Https => "https",
-                    Protocol::Ip4(_) => "ip4",
-                    Protocol::Ip6(_) => "ip6",
-                    Protocol::P2pWebRtcDirect => "p2pwebrtcdirect",
-                    Protocol::P2pWebRtcStar => "p2pwebrtcstar",
-                    Protocol::P2pWebSocketStar => "p2pwebsocketstar",
-                    Protocol::Memory(_) => "memory",
-                    Protocol::Onion(_, _) => "onion",
-                    Protocol::Onion3(_) => "onion3",
-                    Protocol::P2p(_) => "p2p",
-                    Protocol::P2pCircuit => "p2pcircuit",
-                    Protocol::Quic => "quic",
-                    Protocol::Sctp(_) => "sctp",
-                    Protocol::Tcp(_) => "tcp",
-                    Protocol::Tls => "tls",
-                    Protocol::Udp(_) => "udp",
-                    Protocol::Udt => "udt",
-                    Protocol::Unix(_) => "unix",
-                    Protocol::Utp => "utp",
-                    Protocol::Ws(_) => "ws",
-                    Protocol::Wss(_) => "wss",
-                })
-                .intersperse("/")
-                .collect(),
-        )
-    }
 }
 
 impl Metrics {
@@ -372,13 +232,6 @@ impl Metrics {
             "nodes_up_since",
             "Unique nodes discovered through the Dht and up since timebound",
             Box::new(nodes_up_since.clone()),
-        );
-
-        let identify = Family::default();
-        registry.register(
-            "identify",
-            "Identify protocol info",
-            Box::new(identify.clone()),
         );
 
         let meta_offline_nodes_removed = Counter::default();
@@ -398,8 +251,6 @@ impl Metrics {
         Metrics {
             nodes_seen_within,
             nodes_up_since,
-
-            identify,
 
             meta_offline_nodes_removed,
             meta_nodes_total,
