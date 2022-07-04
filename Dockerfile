@@ -1,20 +1,18 @@
-# Build container
+FROM rustlang/rust:nightly-bullseye as builder
+WORKDIR /usr/src/kademlia-exporter
 
-FROM rustlang/rust:nightly-bullseye as build
+# Cache dependencies between test runs,
+# See https://blog.mgattozzi.dev/caching-rust-docker-builds/
+# And https://github.com/rust-lang/cargo/issues/2644
 
-COPY ./ ./
+RUN mkdir -p ./src/
+RUN echo "fn main() {}" > ./src/main.rs
+COPY ./Cargo.* ./
+RUN cargo +nightly build
 
+COPY . .
 RUN cargo +nightly build --release
 
-RUN mkdir -p /build-out
-
-RUN cp target/release/kademlia-exporter /build-out/
-
-
-# Final container
-
 FROM debian:bullseye-slim
-
-COPY --from=build /build-out/kademlia-exporter /
-
-CMD /kademlia-exporter
+COPY --from=builder /usr/src/kademlia-exporter/target/release/kademlia-exporter /usr/local/bin/kademlia-exporter
+ENTRYPOINT [ "kademlia-exporter"]
