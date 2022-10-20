@@ -3,11 +3,10 @@ use client::Client;
 use futures::prelude::*;
 use futures_timer::Delay;
 use libp2p::{
-    identify::IdentifyEvent,
+    identify,
     kad::KademliaEvent,
     multiaddr::{Multiaddr, Protocol},
-    ping::PingEvent,
-    PeerId,
+    ping, PeerId,
 };
 use log::info;
 use maxminddb::{geoip2, Reader};
@@ -80,38 +79,48 @@ impl Exporter {
 
     fn record_event(&mut self, event: client::ClientEvent) {
         match event {
-            client::ClientEvent::Behaviour(client::Event::Ping(PingEvent { peer, result })) => {
+            client::ClientEvent::Behaviour(client::MyBehaviourEvent::Ping(ping::Event {
+                peer,
+                result,
+            })) => {
                 // Update node store.
                 match result {
                     Ok(_) => self.node_store.observed_node(Node::new(peer.clone())),
                     Err(_) => self.node_store.observed_down(&peer),
                 }
             }
-            client::ClientEvent::Behaviour(client::Event::Identify(event)) => match *event {
-                IdentifyEvent::Error { .. } => {}
-                IdentifyEvent::Sent { .. } => {}
-                IdentifyEvent::Received { peer_id, info } => {
-                    self.observe_with_address(peer_id, info.listen_addrs.clone());
-                    self.node_store.observed_node(Node::new(peer_id));
+            client::ClientEvent::Behaviour(client::MyBehaviourEvent::Identify(event)) => {
+                match event {
+                    identify::Event::Error { .. } => {}
+                    identify::Event::Sent { .. } => {}
+                    identify::Event::Received { peer_id, info } => {
+                        self.observe_with_address(peer_id, info.listen_addrs.clone());
+                        self.node_store.observed_node(Node::new(peer_id));
+                    }
+                    identify::Event::Pushed { .. } => {
+                        unreachable!("Exporter never pushes identify information.")
+                    }
                 }
-                IdentifyEvent::Pushed { .. } => {
-                    unreachable!("Exporter never pushes identify information.")
+            }
+            client::ClientEvent::Behaviour(client::MyBehaviourEvent::Kademlia(event)) => {
+                match event {
+                    KademliaEvent::RoutablePeer { peer, address } => {
+                        self.observe_with_address(peer, vec![address]);
+                    }
+                    KademliaEvent::PendingRoutablePeer { peer, address } => {
+                        self.observe_with_address(peer, vec![address]);
+                    }
+                    KademliaEvent::RoutingUpdated {
+                        peer, addresses, ..
+                    } => {
+                        self.observe_with_address(peer, addresses.into_vec());
+                    }
+                    _ => {}
                 }
-            },
-            client::ClientEvent::Behaviour(client::Event::Kademlia(event)) => match *event {
-                KademliaEvent::RoutablePeer { peer, address } => {
-                    self.observe_with_address(peer, vec![address]);
-                }
-                KademliaEvent::PendingRoutablePeer { peer, address } => {
-                    self.observe_with_address(peer, vec![address]);
-                }
-                KademliaEvent::RoutingUpdated {
-                    peer, addresses, ..
-                } => {
-                    self.observe_with_address(peer, addresses.into_vec());
-                }
-                _ => {}
-            },
+            }
+            client::ClientEvent::Behaviour(client::MyBehaviourEvent::KeepAlive(v)) => {
+                void::unreachable(v)
+            }
             client::ClientEvent::AllConnectionsClosed(peer_id) => {
                 self.node_store.observed_down(&peer_id);
             }

@@ -10,17 +10,12 @@ use libp2p::{
         self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed,
         transport::Transport, upgrade, Multiaddr,
     },
-    dns,
-    identify::{Identify, IdentifyConfig, IdentifyEvent},
+    dns, identify,
     identity::Keypair,
-    kad::{record::store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent},
+    kad::{record::store::MemoryStore, Kademlia, KademliaConfig},
     metrics::{Metrics, Recorder},
-    mplex, noise,
-    ping::{Ping, PingConfig, PingEvent},
-    swarm::{
-        DialError, NetworkBehaviour, NetworkBehaviourAction, NetworkInfo, PollParameters,
-        SwarmBuilder, SwarmEvent,
-    },
+    mplex, noise, ping, swarm,
+    swarm::{DialError, NetworkInfo, SwarmBuilder, SwarmEvent},
     tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
 };
 use prometheus_client::registry::Registry;
@@ -133,9 +128,10 @@ impl Stream for Client {
             match event {
                 SwarmEvent::Behaviour(event) => {
                     match &event {
-                        Event::Ping(e) => self.metrics.record(e),
-                        Event::Identify(e) => self.metrics.record(e.as_ref()),
-                        Event::Kademlia(e) => self.metrics.record(e.as_ref()),
+                        MyBehaviourEvent::Ping(e) => self.metrics.record(e),
+                        MyBehaviourEvent::Identify(e) => self.metrics.record(e),
+                        MyBehaviourEvent::Kademlia(e) => self.metrics.record(e),
+                        MyBehaviourEvent::KeepAlive(v) => void::unreachable(*v),
                     }
                     return Poll::Ready(Some(ClientEvent::Behaviour(event)));
                 }
@@ -156,26 +152,16 @@ impl Stream for Client {
 }
 
 pub enum ClientEvent {
-    Behaviour(Event),
+    Behaviour(MyBehaviourEvent),
     AllConnectionsClosed(PeerId),
 }
 
 #[derive(NetworkBehaviour)]
-#[behaviour(out_event = "Event", poll_method = "poll")]
-pub(crate) struct MyBehaviour {
+pub struct MyBehaviour {
     pub(crate) kademlia: Kademlia<MemoryStore>,
-    pub(crate) ping: Ping,
-    pub(crate) identify: Identify,
-
-    #[behaviour(ignore)]
-    event_buffer: Vec<Event>,
-}
-
-#[derive(Debug)]
-pub enum Event {
-    Ping(PingEvent),
-    Identify(Box<IdentifyEvent>),
-    Kademlia(Box<KademliaEvent>),
+    pub(crate) ping: ping::Behaviour,
+    pub(crate) identify: identify::Behaviour,
+    keep_alive: swarm::keep_alive::Behaviour,
 }
 
 impl MyBehaviour {
@@ -200,7 +186,7 @@ impl MyBehaviour {
         kademlia_config.set_max_packet_size(8000);
 
         if let Some(protocol_name) = protocol_name {
-            kademlia_config.set_protocol_name(protocol_name.into_bytes());
+            kademlia_config.set_protocol_names(vec![protocol_name.into_bytes().into()]);
         }
 
         if disjoint_query_paths {
@@ -215,11 +201,11 @@ impl MyBehaviour {
 
         let kademlia = Kademlia::with_config(local_peer_id, store, kademlia_config);
 
-        let ping = Ping::new(PingConfig::new().with_keep_alive(true));
+        let ping = ping::Behaviour::new(ping::Config::new());
 
         let proto_version = "/libp2p/1.0.0".to_string();
-        let identify = Identify::new(
-            IdentifyConfig::new(proto_version, local_key.public())
+        let identify = identify::Behaviour::new(
+            identify::Config::new(proto_version, local_key.public())
                 .with_agent_version(format!("rust-libp2p/{}", env!("CARGO_PKG_VERSION"))),
         );
 
@@ -227,46 +213,8 @@ impl MyBehaviour {
             kademlia,
             ping,
             identify,
-
-            event_buffer: Vec::new(),
+            keep_alive: swarm::keep_alive::Behaviour,
         })
-    }
-
-    fn poll(
-        &mut self,
-        _: &mut Context,
-        _: &mut impl PollParameters,
-    ) -> Poll<
-        NetworkBehaviourAction<
-            <Self as NetworkBehaviour>::OutEvent,
-            <Self as NetworkBehaviour>::ConnectionHandler,
-        >,
-    > {
-        if !self.event_buffer.is_empty() {
-            return Poll::Ready(NetworkBehaviourAction::GenerateEvent(
-                self.event_buffer.remove(0),
-            ));
-        }
-
-        Poll::Pending
-    }
-}
-
-impl From<PingEvent> for Event {
-    fn from(event: PingEvent) -> Self {
-        Event::Ping(event)
-    }
-}
-
-impl From<IdentifyEvent> for Event {
-    fn from(event: IdentifyEvent) -> Self {
-        Event::Identify(Box::new(event))
-    }
-}
-
-impl From<KademliaEvent> for Event {
-    fn from(event: KademliaEvent) -> Self {
-        Event::Kademlia(Box::new(event))
     }
 }
 
