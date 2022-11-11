@@ -3,7 +3,6 @@ use futures::executor::block_on;
 use futures::prelude::*;
 use futures::ready;
 use libp2p::bandwidth::BandwidthSinks;
-use libp2p::tcp::GenTcpConfig;
 use libp2p::TransportExt;
 use libp2p::{
     core::{
@@ -222,7 +221,7 @@ fn build_transport(
     keypair: Keypair,
     noise_legacy: bool,
 ) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<BandwidthSinks>) {
-    let tcp = tcp::TcpTransport::new(GenTcpConfig::default().nodelay(true));
+    let tcp = tcp::async_io::Transport::new(tcp::Config::default().nodelay(true));
     // Ignore any non global IP addresses. Given the amount of private IP
     // addresses in most Dhts dialing private IP addresses can easily be (and
     // has been) interpreted as a port-scan by ones hosting provider.
