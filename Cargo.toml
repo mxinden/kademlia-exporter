@@ -12,7 +12,7 @@ cidr = "0.2.1"
 csv = "1.1.6"
 env_logger = "0.9.3"
 futures = "0.3.25"
-libp2p = { version = "0.50", default-features = false, features = ["dns", "async-std", "noise", "tcp", "yamux", "identify", "kad", "ping", "mplex", "metrics"] }
+libp2p = { version = "0.50", default-features = false, features = ["dns", "async-std", "noise", "tcp", "yamux", "identify", "kad", "ping", "mplex", "metrics", "quic", "rsa", "macros"] }
 log = "0.4.17"
 prometheus-client = "0.18.1"
 regex = "1"
@@ -27,16 +27,17 @@ serde = "1.0.147"
 serde_derive = "1.0.125"
 toml = "0.5.9"
 
+[patch.crates-io]
+libp2p = { git = 'https://github.com/libp2p/rust-libp2p', branch = "master" }
+
 # [patch."https://github.com/mxinden/rust-libp2p"]
 # libp2p = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p" }
 # libp2p-kad = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p/protocols/kad" }
 
 # [patch.crates-io]
+# libp2p = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p" }
 # open-metrics-client = { path = "../rust-open-metrics-client" }
 
 # Include debugging symbols in release binary.
 [profile.release]
 debug = true
-
-[patch.crates-io]
-libp2p = { path = "../../libp2p/rust-libp2p" }

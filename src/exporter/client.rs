@@ -14,8 +14,9 @@ use libp2p::{
     kad::{record::store::MemoryStore, Kademlia, KademliaConfig},
     metrics::{Metrics, Recorder},
     mplex, noise, ping, swarm,
+    swarm::NetworkBehaviour,
     swarm::{DialError, NetworkInfo, SwarmBuilder, SwarmEvent},
-    tcp, yamux, InboundUpgradeExt, NetworkBehaviour, OutboundUpgradeExt, PeerId, Swarm,
+    tcp, yamux, InboundUpgradeExt, OutboundUpgradeExt, PeerId, Swarm,
 };
 use prometheus_client::registry::Registry;
 use std::sync::Arc;
@@ -49,23 +50,36 @@ impl Client {
         )?;
         let (transport, bandwidth_sinks) = build_transport(local_key, config.noise_legacy);
         let mut swarm = {
-            let mut builder =
-                SwarmBuilder::new(transport, behaviour, local_peer_id).executor(Box::new(|fut| {
+            let mut builder = SwarmBuilder::with_executor(
+                transport,
+                behaviour,
+                local_peer_id,
+                Box::new(|fut| {
                     async_std::task::spawn(fut);
-                }));
+                }),
+            );
             if let Some(dial_concurrency_factor) = config.dial_concurrency_factor {
                 builder = builder.dial_concurrency_factor(dial_concurrency_factor);
             }
             builder.build()
         };
 
-        let addr = match config.listen_address {
+        let tcp_addr = match config.tcp_listen_address {
             Some(addr) => Multiaddr::empty()
                 .with(addr.ip().into())
                 .with(Protocol::Tcp(addr.port())),
             None => "/ip4/0.0.0.0/tcp/0".parse()?,
         };
-        swarm.listen_on(addr)?;
+        swarm.listen_on(tcp_addr)?;
+
+        let quic_addr = match config.quic_listen_address {
+            Some(addr) => Multiaddr::empty()
+                .with(addr.ip().into())
+                .with(Protocol::Udp(addr.port()))
+                .with(Protocol::Quic),
+            None => "/ip4/0.0.0.0/udp/0/quic".parse()?,
+        };
+        swarm.listen_on(quic_addr)?;
 
         for mut bootnode in config.bootnodes {
             let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
@@ -279,12 +293,24 @@ fn build_transport(
             .map_outbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
     };
 
-    let transport = transport
-        .upgrade(upgrade::Version::V1)
-        .authenticate(authentication_config)
-        .multiplex(multiplexing_config)
-        .timeout(Duration::from_secs(20))
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-        .boxed();
+    let quic_transport = {
+        let config = libp2p::quic::Config::new(&keypair);
+        libp2p::quic::async_std::Transport::new(config)
+    };
+
+    let transport = libp2p::core::transport::OrTransport::new(
+        quic_transport,
+        transport
+            .upgrade(upgrade::Version::V1Lazy)
+            .authenticate(authentication_config)
+            .multiplex(multiplexing_config)
+            .timeout(Duration::from_secs(20)),
+    )
+    .map(|either_output, _| match either_output {
+        EitherOutput::First((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+        EitherOutput::Second((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+    })
+    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+    .boxed();
     (transport, bandwidth_sinks)
 }
