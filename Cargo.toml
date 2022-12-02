@@ -27,9 +27,6 @@ serde = "1.0.147"
 serde_derive = "1.0.125"
 toml = "0.5.9"
 
-[patch.crates-io]
-libp2p = { git = 'https://github.com/libp2p/rust-libp2p', branch = "master" }
-
 # [patch."https://github.com/mxinden/rust-libp2p"]
 # libp2p = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p" }
 # libp2p-kad = { path = "/home/mxinden/code/github.com/libp2p/rust-libp2p/protocols/kad" }

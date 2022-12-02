@@ -76,8 +76,8 @@ impl Client {
             Some(addr) => Multiaddr::empty()
                 .with(addr.ip().into())
                 .with(Protocol::Udp(addr.port()))
-                .with(Protocol::Quic),
-            None => "/ip4/0.0.0.0/udp/0/quic".parse()?,
+                .with(Protocol::QuicV1),
+            None => "/ip4/0.0.0.0/udp/0/quic-v1".parse()?,
         };
         swarm.listen_on(quic_addr)?;
 
@@ -295,6 +295,7 @@ fn build_transport(
 
     let quic_transport = {
         let config = libp2p::quic::Config::new(&keypair);
+        // TODO: Support DNS.
         libp2p::quic::async_std::Transport::new(config)
     };
 
