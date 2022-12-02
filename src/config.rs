@@ -13,7 +13,8 @@ pub struct Config {
     pub disjoint_query_paths: bool,
     pub protocol_name: Option<String>,
     pub noise_legacy: bool,
-    pub listen_address: Option<SocketAddr>,
+    pub tcp_listen_address: Option<SocketAddr>,
+    pub quic_listen_address: Option<SocketAddr>,
     pub dial_concurrency_factor: Option<NonZeroU8>,
 }
 
