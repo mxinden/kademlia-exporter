@@ -164,6 +164,7 @@ impl Stream for Client {
     }
 }
 
+#[derive(Debug)]
 pub enum ClientEvent {
     Behaviour(MyBehaviourEvent),
     AllConnectionsClosed(PeerId),
