@@ -79,7 +79,16 @@ impl Client {
                 .with(Protocol::QuicV1),
             None => "/ip4/0.0.0.0/udp/0/quic-v1".parse()?,
         };
-        swarm.listen_on(quic_addr)?;
+        swarm.listen_on(quic_addr.clone())?;
+        swarm.listen_on(
+            quic_addr
+                .into_iter()
+                .map(|p| match p {
+                    Protocol::QuicV1 => Protocol::Quic,
+                    p => p,
+                })
+                .collect(),
+        )?;
 
         for mut bootnode in config.bootnodes {
             let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
