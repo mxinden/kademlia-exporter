@@ -240,8 +240,7 @@ fn build_transport(
     // addresses in most Dhts dialing private IP addresses can easily be (and
     // has been) interpreted as a port-scan by ones hosting provider.
     let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
-    let transport = block_on(dns::DnsConfig::system(global_only_tcp)).unwrap();
-    let (transport, bandwidth_sinks) = transport.with_bandwidth_logging();
+    let (transport, bandwidth_sinks) = global_only_tcp.with_bandwidth_logging();
 
     let authentication_config = {
         let noise_keypair_legacy = noise::Keypair::<noise::X25519>::new().into_authentic(&keypair)
@@ -294,19 +293,22 @@ fn build_transport(
     };
 
     let quic_transport = {
-        let config = libp2p::quic::Config::new(&keypair);
-        // TODO: Support DNS.
+        let mut config = libp2p::quic::Config::new(&keypair);
+        config.support_draft_29 = true;
         libp2p::quic::async_std::Transport::new(config)
     };
 
-    let transport = libp2p::core::transport::OrTransport::new(
-        quic_transport,
-        transport
-            .upgrade(upgrade::Version::V1Lazy)
-            .authenticate(authentication_config)
-            .multiplex(multiplexing_config)
-            .timeout(Duration::from_secs(20)),
-    )
+    let transport = block_on(dns::DnsConfig::system(
+        libp2p::core::transport::OrTransport::new(
+            quic_transport,
+            transport
+                .upgrade(upgrade::Version::V1Lazy)
+                .authenticate(authentication_config)
+                .multiplex(multiplexing_config)
+                .timeout(Duration::from_secs(20)),
+        ),
+    ))
+    .unwrap()
     .map(|either_output, _| match either_output {
         EitherOutput::First((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
         EitherOutput::Second((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
