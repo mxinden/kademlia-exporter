@@ -19,8 +19,6 @@ use libp2p::{
     tcp, yamux, InboundUpgradeExt, OutboundUpgradeExt, PeerId, Swarm,
 };
 use prometheus_client::registry::Registry;
-use std::net::Ipv4Addr;
-use std::net::Ipv6Addr;
 use std::sync::Arc;
 use std::{
     error::Error,
@@ -66,29 +64,31 @@ impl Client {
             builder.build()
         };
 
-        for ip_addr_version in [
-            Protocol::from(Ipv4Addr::UNSPECIFIED),
-            Protocol::from(Ipv6Addr::UNSPECIFIED),
-        ]
-        .iter()
-        {
-            let tcp_addr = Multiaddr::empty()
-                .with(ip_addr_version.clone())
-                .with(Protocol::Tcp(config.tcp_listen_port.unwrap_or(0)));
-            swarm.listen_on(tcp_addr)?;
+        let tcp_addr = match config.tcp_listen_address {
+            Some(addr) => Multiaddr::empty()
+                .with(addr.ip().into())
+                .with(Protocol::Tcp(addr.port())),
+            None => "/ip4/0.0.0.0/tcp/0".parse()?,
+        };
+        swarm.listen_on(tcp_addr)?;
 
-            let quic_addr = Multiaddr::empty()
-                .with(ip_addr_version.clone())
-                .with(Protocol::Udp(config.quic_listen_port.unwrap_or(0)))
-                .with(Protocol::Quic);
-            swarm.listen_on(quic_addr)?;
+        let quic_addr = match config.quic_listen_address {
+            Some(addr) => Multiaddr::empty()
+                .with(addr.ip().into())
+                .with(Protocol::Udp(addr.port()))
+                .with(Protocol::Quic),
+            None => "/ip4/0.0.0.0/udp/0/quic".parse()?,
+        };
+        swarm.listen_on(quic_addr)?;
 
-            let quic_addr_v1 = Multiaddr::empty()
-                .with(ip_addr_version.clone())
-                .with(Protocol::Udp(config.quic_v1_listen_port.unwrap_or(0)))
-                .with(Protocol::QuicV1);
-            swarm.listen_on(quic_addr_v1)?;
-        }
+        let quic_addr_v1 = match config.quic_v1_listen_address {
+            Some(addr) => Multiaddr::empty()
+                .with(addr.ip().into())
+                .with(Protocol::Udp(addr.port()))
+                .with(Protocol::QuicV1),
+            None => "/ip4/0.0.0.0/udp/0/quic-v1".parse()?,
+        };
+        swarm.listen_on(quic_addr_v1)?;
 
         for mut bootnode in config.bootnodes {
             let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {

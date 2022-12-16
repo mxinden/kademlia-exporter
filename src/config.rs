@@ -1,5 +1,6 @@
 use libp2p::core::Multiaddr;
 use serde_derive::Deserialize;
+use std::net::SocketAddr;
 use std::num::NonZeroU8;
 use std::path::PathBuf;
 
@@ -12,9 +13,9 @@ pub struct Config {
     pub disjoint_query_paths: bool,
     pub protocol_name: Option<String>,
     pub noise_legacy: bool,
-    pub tcp_listen_port: Option<u16>,
-    pub quic_listen_port: Option<u16>,
-    pub quic_v1_listen_port: Option<u16>,
+    pub tcp_listen_address: Option<SocketAddr>,
+    pub quic_listen_address: Option<SocketAddr>,
+    pub quic_v1_listen_address: Option<SocketAddr>,
     pub dial_concurrency_factor: Option<NonZeroU8>,
 }
 
