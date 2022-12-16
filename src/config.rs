@@ -15,6 +15,7 @@ pub struct Config {
     pub noise_legacy: bool,
     pub tcp_listen_address: Option<SocketAddr>,
     pub quic_listen_address: Option<SocketAddr>,
+    pub quic_v1_listen_address: Option<SocketAddr>,
     pub dial_concurrency_factor: Option<NonZeroU8>,
 }
 

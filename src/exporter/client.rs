@@ -76,19 +76,19 @@ impl Client {
             Some(addr) => Multiaddr::empty()
                 .with(addr.ip().into())
                 .with(Protocol::Udp(addr.port()))
+                .with(Protocol::Quic),
+            None => "/ip4/0.0.0.0/udp/0/quic".parse()?,
+        };
+        swarm.listen_on(quic_addr)?;
+
+        let quic_addr_v1 = match config.quic_v1_listen_address {
+            Some(addr) => Multiaddr::empty()
+                .with(addr.ip().into())
+                .with(Protocol::Udp(addr.port()))
                 .with(Protocol::QuicV1),
             None => "/ip4/0.0.0.0/udp/0/quic-v1".parse()?,
         };
-        swarm.listen_on(quic_addr.clone())?;
-        swarm.listen_on(
-            quic_addr
-                .into_iter()
-                .map(|p| match p {
-                    Protocol::QuicV1 => Protocol::Quic,
-                    p => p,
-                })
-                .collect(),
-        )?;
+        swarm.listen_on(quic_addr_v1)?;
 
         for mut bootnode in config.bootnodes {
             let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
