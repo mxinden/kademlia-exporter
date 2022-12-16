@@ -51,12 +51,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .cloud_provider_cidr_db_path
         .clone()
         .map(|path| cloud_provider_db::Db::new(path).expect("Failed to parse cloud provider db."));
-    let exporter = task::block_on(exporter::Exporter::new(
-        config,
-        ip_db,
-        cloud_provider_db,
-        &mut registry,
-    ))?;
+    let exporter = exporter::Exporter::new(config, ip_db, cloud_provider_db, &mut registry)?;
 
     let registry = Arc::new(Mutex::new(registry));
 
