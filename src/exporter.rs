@@ -48,13 +48,13 @@ pub(crate) struct Exporter {
 }
 
 impl Exporter {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         config: Config,
         ip_db: Option<Reader<Vec<u8>>>,
         cloud_provider_db: Option<cloud_provider_db::Db>,
         registry: &mut Registry,
     ) -> Result<Self, Box<dyn Error>> {
-        let client = client::Client::new(config, registry).unwrap();
+        let client = client::Client::new(config, registry).await.unwrap();
 
         let sub_registry = registry.sub_registry_with_prefix("kademlia_exporter");
 

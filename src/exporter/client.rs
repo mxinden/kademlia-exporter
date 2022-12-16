@@ -18,6 +18,7 @@ use libp2p::{
     swarm::{DialError, NetworkInfo, SwarmBuilder, SwarmEvent},
     tcp, yamux, InboundUpgradeExt, OutboundUpgradeExt, PeerId, Swarm,
 };
+use log::info;
 use prometheus_client::registry::Registry;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
@@ -40,7 +41,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(config: Config, registry: &mut Registry) -> Result<Client, Box<dyn Error>> {
+    pub async fn new(config: Config, registry: &mut Registry) -> Result<Client, Box<dyn Error>> {
         // Create a random key for ourselves.
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -88,6 +89,25 @@ impl Client {
                 .with(Protocol::Udp(config.quic_v1_listen_port.unwrap_or(0)))
                 .with(Protocol::QuicV1);
             swarm.listen_on(quic_addr_v1)?;
+        }
+
+        // Wait to listen on all interfaces.
+        let mut delay = futures_timer::Delay::new(std::time::Duration::from_secs(1)).fuse();
+        loop {
+            futures::select! {
+                event = swarm.select_next_some() => {
+                    match event {
+                        SwarmEvent::NewListenAddr { address, .. } => {
+                            info!("Listening on {:?}", address);
+                        }
+                        event => panic!("{:?}", event),
+                    }
+                }
+                _ = delay => {
+                    // Likely listening on all interfaces now, thus continuing by breaking the loop.
+                    break;
+                }
+            }
         }
 
         for mut bootnode in config.bootnodes {
