@@ -3,6 +3,7 @@ use prometheus_client::metrics::gauge::{ConstGauge, Gauge};
 use prometheus_client::MaybeOwned;
 use prometheus_client::{metrics::counter::Counter, registry::Descriptor};
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::convert::TryInto;
 use std::sync::atomic::AtomicI64;
@@ -13,11 +14,53 @@ use std::{
 };
 
 /// Stores information about a set of nodes for a single Dht.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct NodeStore {
     nodes: Arc<Mutex<HashMap<PeerId, Node>>>,
 
     offline_nodes_removed: Counter,
+
+    nodes_seen_within_desc: Descriptor,
+    nodes_up_since_desc: Descriptor,
+    meta_offline_nodes_removed_desc: Descriptor,
+    meta_nodes_total_desc: Descriptor,
+}
+
+impl Default for NodeStore {
+    fn default() -> Self {
+        Self {
+            nodes: Default::default(),
+            offline_nodes_removed: Default::default(),
+            nodes_seen_within_desc: Descriptor::new(
+                "nodes_seen_within",
+                "Unique nodes discovered within the time bound through the Dht",
+                None,
+                None,
+                vec![],
+            ),
+            nodes_up_since_desc: Descriptor::new(
+                "nodes_up_since",
+                "Unique nodes discovered through the Dht and up since timebound",
+                None,
+                None,
+                vec![],
+            ),
+            meta_offline_nodes_removed_desc: Descriptor::new(
+                "meta_offline_nodes_removed",
+                "Number of nodes removed due to being offline longer than 12h",
+                None,
+                None,
+                vec![],
+            ),
+            meta_nodes_total_desc: Descriptor::new(
+                "meta_nodes_total",
+                "Number of nodes tracked",
+                None,
+                None,
+                vec![],
+            ),
+        }
+    }
 }
 
 impl NodeStore {
@@ -54,7 +97,10 @@ impl prometheus_client::collector::Collector for NodeStore {
         dyn Iterator<
                 Item = (
                     std::borrow::Cow<'a, prometheus_client::registry::Descriptor>,
-                    prometheus_client::MaybeOwned<'a, Box<dyn prometheus_client::registry::Metric>>,
+                    prometheus_client::MaybeOwned<
+                        'a,
+                        Box<dyn prometheus_client::collector::Metric>,
+                    >,
                 ),
             > + 'a,
     > {
@@ -118,8 +164,8 @@ impl prometheus_client::collector::Collector for NodeStore {
             })
             .flatten();
 
-        let nodes_seen_within: Box<dyn prometheus_client::registry::Metric> =
-            Box::new(parking_lot::Mutex::new(nodes_seen_within));
+        let nodes_seen_within: Box<dyn prometheus_client::collector::Metric> =
+            Box::new(RefCell::new(nodes_seen_within));
 
         //
         // Up since
@@ -183,8 +229,8 @@ impl prometheus_client::collector::Collector for NodeStore {
             })
             .flatten();
 
-        let nodes_up_since: Box<dyn prometheus_client::registry::Metric> =
-            Box::new(parking_lot::Mutex::new(up_since));
+        let nodes_up_since: Box<dyn prometheus_client::collector::Metric> =
+            Box::new(RefCell::new(up_since));
 
         let iter: Box<
             dyn Iterator<
@@ -192,64 +238,26 @@ impl prometheus_client::collector::Collector for NodeStore {
                         std::borrow::Cow<'a, prometheus_client::registry::Descriptor>,
                         prometheus_client::MaybeOwned<
                             'a,
-                            Box<dyn prometheus_client::registry::Metric>,
+                            Box<dyn prometheus_client::collector::Metric>,
                         >,
                     ),
                 > + 'a,
         > = Box::new(
             [
                 (
-                    Cow::Owned(Descriptor::new(
-                        "nodes_seen_within",
-                        "Unique nodes discovered within the time bound through the Dht",
-                        None,
-                        None,
-                        vec![],
-                    )),
+                    Cow::Borrowed(&self.nodes_seen_within_desc),
                     MaybeOwned::Owned(nodes_seen_within),
                 ),
                 (
-                    Cow::Owned(Descriptor::new(
-                        "nodes_up_since",
-                        "Unique nodes discovered through the Dht and up since timebound",
-                        None,
-                        None,
-                        vec![],
-                    )),
+                    Cow::Borrowed(&self.nodes_up_since_desc),
                     MaybeOwned::Owned(nodes_up_since),
                 ),
                 (
-                    Cow::Owned(Descriptor::new(
-                        "meta_offline_nodes_removed",
-                        "Number of nodes removed due to being offline longer than 12h",
-                        None,
-                        None,
-                        vec![],
-                    )),
+                    Cow::Borrowed(&self.meta_offline_nodes_removed_desc),
                     MaybeOwned::Owned(Box::new(self.offline_nodes_removed.clone())),
                 ),
                 (
-                    Cow::Owned(Descriptor::new(
-                        "meta_nodes_total",
-                        "Number of nodes tracked",
-                        None,
-                        None,
-                        vec![],
-                    )),
-                    MaybeOwned::Owned({
-                        let g: Gauge<_, AtomicI64> = Gauge::default();
-                        g.set(nodes.len() as i64);
-                        Box::new(g)
-                    }),
-                ),
-                (
-                    Cow::Owned(Descriptor::new(
-                        "meta_nodes_total",
-                        "Number of nodes tracked",
-                        None,
-                        None,
-                        vec![],
-                    )),
+                    Cow::Borrowed(&self.meta_nodes_total_desc),
                     MaybeOwned::Owned({
                         let g: Gauge<_, AtomicI64> = Gauge::default();
                         g.set(nodes.len() as i64);
