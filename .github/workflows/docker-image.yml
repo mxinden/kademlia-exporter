@@ -2,7 +2,6 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "master" ]
 
 jobs:
   build:
@@ -27,4 +26,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/kademlia-exporter:latest
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/kademlia-exporter:${GITHUB_REF##*/}
