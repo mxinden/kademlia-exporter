@@ -279,18 +279,16 @@ fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<Ba
     // Ignore any non global IP addresses. Given the amount of private IP
     // addresses in most Dhts dialing private IP addresses can easily be (and
     // has been) interpreted as a port-scan by ones hosting provider.
-    let (transport, bandwidth_sinks) = global_only::GlobalIpOnly::new(
-        block_on(dns::DnsConfig::system(
-            libp2p::core::transport::OrTransport::new(
-                quic_transport,
-                tcp.upgrade(upgrade::Version::V1Lazy)
-                    .authenticate(authentication_config)
-                    .multiplex(multiplexing_config)
-                    .timeout(Duration::from_secs(20)),
-            ),
-        ))
-        .unwrap(),
-    )
+    let (transport, bandwidth_sinks) = block_on(dns::DnsConfig::system(
+        global_only::GlobalIpOnly::new(libp2p::core::transport::OrTransport::new(
+            quic_transport,
+            tcp.upgrade(upgrade::Version::V1Lazy)
+                .authenticate(authentication_config)
+                .multiplex(multiplexing_config)
+                .timeout(Duration::from_secs(20)),
+        )),
+    ))
+    .unwrap()
     .map(|either_output, _| match either_output {
         EitherOutput::First((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
         EitherOutput::Second((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
