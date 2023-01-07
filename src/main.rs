@@ -60,10 +60,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut app = tide::with_state(registry);
         app.at("/metrics")
             .get(|req: tide::Request<Arc<Mutex<Registry>>>| async move {
-                let mut buffer = vec![];
+                let mut buffer = String::new();
                 encode(&mut buffer, &req.state().lock().unwrap()).unwrap();
 
-                Ok(String::from_utf8(buffer).unwrap())
+                Ok(buffer)
             });
         let endpoint = app.listen("0.0.0.0:8080");
         futures::pin_mut!(endpoint);

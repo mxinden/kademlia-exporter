@@ -63,7 +63,7 @@ impl NodeStore {
         //
 
         let mut nodes_by_time_by_country_and_provider =
-            HashMap::<Duration, HashMap<(String, String), u64>>::new();
+            HashMap::<Duration, HashMap<(String, String), i64>>::new();
 
         // Insert 3h, 6h, ... buckets.
         for factor in &[3, 6, 12] {
@@ -110,7 +110,7 @@ impl NodeStore {
         //
 
         let mut nodes_by_time_by_country_and_provider =
-            HashMap::<Duration, HashMap<(String, String), u64>>::new();
+            HashMap::<Duration, HashMap<(String, String), i64>>::new();
 
         // Insert 3h, 6h, ... buckets.
         for factor in &[3, 6, 12, 24, 48, 96] {
@@ -162,7 +162,7 @@ impl NodeStore {
             }
         }
 
-        self.metrics.meta_nodes_total.set(self.nodes.len() as u64);
+        self.metrics.meta_nodes_total.set(self.nodes.len() as i64);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Node> {
@@ -224,28 +224,28 @@ impl Metrics {
         registry.register(
             "nodes_seen_within",
             "Unique nodes discovered within the time bound through the Dht",
-            Box::new(nodes_seen_within.clone()),
+            nodes_seen_within.clone(),
         );
 
         let nodes_up_since = Family::default();
         registry.register(
             "nodes_up_since",
             "Unique nodes discovered through the Dht and up since timebound",
-            Box::new(nodes_up_since.clone()),
+            nodes_up_since.clone(),
         );
 
         let meta_offline_nodes_removed = Counter::default();
         registry.register(
             "meta_offline_nodes_removed",
             "Number of nodes removed due to being offline longer than 12h",
-            Box::new(meta_offline_nodes_removed.clone()),
+            meta_offline_nodes_removed.clone(),
         );
 
         let meta_nodes_total = Gauge::default();
         registry.register(
             "meta_nodes_total",
             "Number of nodes tracked",
-            Box::new(meta_nodes_total.clone()),
+            meta_nodes_total.clone(),
         );
 
         Metrics {
