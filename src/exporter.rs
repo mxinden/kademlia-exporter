@@ -254,10 +254,10 @@ impl Future for Exporter {
                 .set(info.connection_counters().num_pending().into());
             this.metrics
                 .meta_libp2p_bandwidth_inbound
-                .set(this.client.total_inbound());
+                .set(this.client.total_inbound() as i64);
             this.metrics
                 .meta_libp2p_bandwidth_outbound
-                .set(this.client.total_outbound());
+                .set(this.client.total_outbound() as i64);
         }
 
         loop {
@@ -289,56 +289,56 @@ impl Metrics {
         registry.register(
             "meta_random_node_lookup_triggered",
             "Number of times a random Kademlia node lookup was triggered",
-            Box::new(meta_random_node_lookup_triggered.clone()),
+            meta_random_node_lookup_triggered.clone(),
         );
 
         let meta_node_still_online_check_triggered = Counter::default();
         registry.register(
             "meta_node_still_online_check_triggered",
             "Number of times a connection to a node was established to ensure it is still online",
-            Box::new(meta_node_still_online_check_triggered.clone()),
+            meta_node_still_online_check_triggered.clone(),
         );
 
         let meta_libp2p_network_info_num_peers = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_peers",
             "The total number of connected peers",
-            Box::new(meta_libp2p_network_info_num_peers.clone()),
+            meta_libp2p_network_info_num_peers.clone(),
         );
 
         let meta_libp2p_network_info_num_connections = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_connections",
             "The total number of connections, both established and pending",
-            Box::new(meta_libp2p_network_info_num_peers.clone()),
+            meta_libp2p_network_info_num_peers.clone(),
         );
 
         let meta_libp2p_network_info_num_connections_pending = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_connections_pending",
             "The total number of pending connections, both incoming and outgoing",
-            Box::new(meta_libp2p_network_info_num_connections_pending.clone()),
+            meta_libp2p_network_info_num_connections_pending.clone(),
         );
 
         let meta_libp2p_network_info_num_connections_established = Gauge::default();
         registry.register(
             "meta_libp2p_network_info_num_connections_established",
             "The total number of established connections",
-            Box::new(meta_libp2p_network_info_num_connections_established.clone()),
+            meta_libp2p_network_info_num_connections_established.clone(),
         );
 
         let meta_libp2p_bandwidth_inbound = Gauge::default();
         registry.register(
             "meta_libp2p_bandwidth_inbound",
             "The total number of bytes received on the socket",
-            Box::new(meta_libp2p_bandwidth_inbound.clone()),
+            meta_libp2p_bandwidth_inbound.clone(),
         );
 
         let meta_libp2p_bandwidth_outbound = Gauge::default();
         registry.register(
             "meta_libp2p_bandwidth_outbound",
             "The total number of bytes sent on the socket",
-            Box::new(meta_libp2p_bandwidth_outbound.clone()),
+            meta_libp2p_bandwidth_outbound.clone(),
         );
 
         Metrics {

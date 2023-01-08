@@ -48,7 +48,7 @@ impl Client {
             config.disjoint_query_paths,
             config.protocol_name,
         )?;
-        let (transport, bandwidth_sinks) = build_transport(local_key, config.noise_legacy);
+        let (transport, bandwidth_sinks) = build_transport(local_key);
         let mut swarm = {
             let mut builder = SwarmBuilder::with_executor(
                 transport,
@@ -173,6 +173,7 @@ impl Stream for Client {
     }
 }
 
+#[derive(Debug)]
 pub enum ClientEvent {
     Behaviour(MyBehaviourEvent),
     AllConnectionsClosed(PeerId),
@@ -240,50 +241,18 @@ impl MyBehaviour {
     }
 }
 
-fn build_transport(
-    keypair: Keypair,
-    noise_legacy: bool,
-) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<BandwidthSinks>) {
+fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<BandwidthSinks>) {
     let tcp = tcp::async_io::Transport::new(tcp::Config::default().nodelay(true));
-    // Ignore any non global IP addresses. Given the amount of private IP
-    // addresses in most Dhts dialing private IP addresses can easily be (and
-    // has been) interpreted as a port-scan by ones hosting provider.
-    let global_only_tcp = global_only::GlobalIpOnly::new(tcp);
-    let (transport, bandwidth_sinks) = global_only_tcp.with_bandwidth_logging();
 
     let authentication_config = {
-        let noise_keypair_legacy = noise::Keypair::<noise::X25519>::new().into_authentic(&keypair)
-            .expect("can only fail in case of a hardware bug; since this signing is performed only \
-                     once and at initialization, we're taking the bet that the inconvenience of a very \
-                     rare panic here is basically zero");
         let noise_keypair_spec = noise::Keypair::<noise::X25519Spec>::new().into_authentic(&keypair)
             .expect("can only fail in case of a hardware bug; since this signing is performed only \
                      once and at initialization, we're taking the bet that the inconvenience of a very \
                      rare panic here is basically zero");
 
-        let mut xx_config = noise::NoiseConfig::xx(noise_keypair_spec);
-        let mut ix_config = noise::NoiseConfig::ix(noise_keypair_legacy);
+        let xx_config = noise::NoiseConfig::xx(noise_keypair_spec);
 
-        if noise_legacy {
-            // Legacy noise configurations for backward compatibility.
-            let mut noise_legacy = noise::LegacyConfig::default();
-            noise_legacy.recv_legacy_handshake = true;
-
-            xx_config.set_legacy_config(noise_legacy.clone());
-            ix_config.set_legacy_config(noise_legacy);
-        }
-
-        let extract_peer_id = |result| match result {
-            EitherOutput::First((peer_id, o)) => (peer_id, EitherOutput::First(o)),
-            EitherOutput::Second((peer_id, o)) => (peer_id, EitherOutput::Second(o)),
-        };
-
-        core::upgrade::SelectUpgrade::new(
-            xx_config.into_authenticated(),
-            ix_config.into_authenticated(),
-        )
-        .map_inbound(extract_peer_id)
-        .map_outbound(extract_peer_id)
+        xx_config.into_authenticated()
     };
 
     let multiplexing_config = {
@@ -307,15 +276,17 @@ fn build_transport(
         libp2p::quic::async_std::Transport::new(config)
     };
 
-    let transport = block_on(dns::DnsConfig::system(
-        libp2p::core::transport::OrTransport::new(
+    // Ignore any non global IP addresses. Given the amount of private IP
+    // addresses in most Dhts dialing private IP addresses can easily be (and
+    // has been) interpreted as a port-scan by ones hosting provider.
+    let (transport, bandwidth_sinks) = block_on(dns::DnsConfig::system(
+        global_only::GlobalIpOnly::new(libp2p::core::transport::OrTransport::new(
             quic_transport,
-            transport
-                .upgrade(upgrade::Version::V1Lazy)
+            tcp.upgrade(upgrade::Version::V1Lazy)
                 .authenticate(authentication_config)
                 .multiplex(multiplexing_config)
                 .timeout(Duration::from_secs(20)),
-        ),
+        )),
     ))
     .unwrap()
     .map(|either_output, _| match either_output {
@@ -323,6 +294,6 @@ fn build_transport(
         EitherOutput::Second((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
     })
     .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-    .boxed();
+    .with_bandwidth_logging();
     (transport, bandwidth_sinks)
 }
