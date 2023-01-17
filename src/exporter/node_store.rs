@@ -31,7 +31,7 @@ impl NodeStore {
                 n.merge(node);
             }
             None => {
-                self.nodes.insert(node.peer_id.clone(), node);
+                self.nodes.insert(node.peer_id, node);
             }
         }
     }

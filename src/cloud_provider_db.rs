@@ -23,7 +23,7 @@ impl Db {
 
             providers
                 .entry(provider.to_string())
-                .and_modify(|p| p.push(cidr.clone()))
+                .and_modify(|p| p.push(cidr))
                 .or_insert_with(|| vec![cidr]);
         }
 
