@@ -158,7 +158,7 @@ impl Stream for Client {
                     return Poll::Ready(Some(ClientEvent::Behaviour(event)));
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    println!("Swarm listening on {:?}", address);
+                    println!("Swarm listening on {address:?}");
                 }
                 SwarmEvent::ConnectionClosed {
                     peer_id,
@@ -196,7 +196,7 @@ impl MyBehaviour {
         let local_peer_id = PeerId::from(local_key.public());
 
         // Create a Kademlia behaviour.
-        let store = MemoryStore::new(local_peer_id.clone());
+        let store = MemoryStore::new(local_peer_id);
 
         let mut kademlia_config = KademliaConfig::default();
 
@@ -266,8 +266,8 @@ fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<Ba
         yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
 
         core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
-            .map_inbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
-            .map_outbound(move |muxer| core::muxing::StreamMuxerBox::new(muxer))
+            .map_inbound(core::muxing::StreamMuxerBox::new)
+            .map_outbound(core::muxing::StreamMuxerBox::new)
     };
 
     let quic_transport = {
