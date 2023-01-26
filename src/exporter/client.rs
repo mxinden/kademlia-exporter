@@ -1,13 +1,14 @@
 use crate::config::Config;
 use futures::executor::block_on;
+use futures::future::Either;
 use futures::prelude::*;
 use futures::ready;
 use libp2p::bandwidth::BandwidthSinks;
 use libp2p::TransportExt;
 use libp2p::{
     core::{
-        self, either::EitherOutput, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed,
-        transport::Transport, upgrade, Multiaddr,
+        self, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed, transport::Transport,
+        upgrade, Multiaddr,
     },
     dns, identify,
     identity::Keypair,
@@ -290,8 +291,8 @@ fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<Ba
     ))
     .unwrap()
     .map(|either_output, _| match either_output {
-        EitherOutput::First((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
-        EitherOutput::Second((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+        Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+        Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
     })
     .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     .with_bandwidth_logging();
