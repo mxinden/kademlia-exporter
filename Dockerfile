@@ -1,8 +1,6 @@
 FROM rustlang/rust:nightly-bullseye as builder
 WORKDIR /usr/src/kademlia-exporter
 
-RUN apt-get update && apt-get install -y cmake protobuf-compiler
-
 # Cache dependencies between test runs,
 # See https://blog.mgattozzi.dev/caching-rust-docker-builds/
 # And https://github.com/rust-lang/cargo/issues/2644
