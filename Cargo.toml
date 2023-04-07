@@ -11,7 +11,7 @@ async-std = "1.12.0"
 cidr = "0.2.1"
 csv = "1.2.1"
 env_logger = "0.10.0"
-futures = "0.3.27"
+futures = "0.3.28"
 libp2p = { git = "https://github.com/libp2p/rust-libp2p.git", branch = "bump-yamux", version = "0.51", default-features = false, features = ["dns", "async-std", "noise", "tcp", "yamux", "identify", "kad", "ping", "mplex", "metrics", "quic", "rsa", "macros"] }
 log = "0.4.17"
 prometheus-client = "0.19.0"
