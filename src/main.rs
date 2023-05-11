@@ -1,6 +1,3 @@
-#![feature(ip)]
-#![feature(hash_drain_filter)]
-
 use async_std::task;
 use prometheus_client::encoding::text::encode;
 use prometheus_client::registry::Registry;

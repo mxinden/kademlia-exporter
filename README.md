@@ -15,7 +15,7 @@ Exporter exposing [Prometheus](https://prometheus.io/) metrics for
 ### Quickstart
 
 ```bash
-cargo +nightly run -- --config-file config.toml
+cargo run -- --config-file config.toml
 
 curl localhost:8080/metrics
 ```
