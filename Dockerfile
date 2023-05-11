@@ -1,4 +1,4 @@
-FROM rustlang/rust as builder
+FROM rustlang/rust:1.69 as builder
 WORKDIR /usr/src/kademlia-exporter
 
 # Cache dependencies between test runs,
