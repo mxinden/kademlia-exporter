@@ -4,20 +4,21 @@ use futures::future::Either;
 use futures::prelude::*;
 use futures::ready;
 use libp2p::bandwidth::BandwidthSinks;
+use libp2p::StreamProtocol;
 use libp2p::TransportExt;
 use libp2p::{
     core::{
-        self, multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed, transport::Transport,
+        multiaddr::Protocol, muxing::StreamMuxerBox, transport::Boxed, transport::Transport,
         upgrade, Multiaddr,
     },
     dns, identify,
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaConfig},
     metrics::{Metrics, Recorder},
-    mplex, noise, ping, swarm,
+    noise, ping, swarm,
     swarm::NetworkBehaviour,
     swarm::{DialError, NetworkInfo, SwarmBuilder, SwarmEvent},
-    tcp, yamux, InboundUpgradeExt, OutboundUpgradeExt, PeerId, Swarm,
+    tcp, yamux, PeerId, Swarm,
 };
 use prometheus_client::registry::Registry;
 use std::sync::Arc;
@@ -27,10 +28,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
-    usize,
 };
-
-mod global_only;
 
 pub struct Client {
     swarm: Swarm<MyBehaviour>,
@@ -210,7 +208,8 @@ impl MyBehaviour {
         kademlia_config.set_max_packet_size(8000);
 
         if let Some(protocol_name) = protocol_name {
-            kademlia_config.set_protocol_names(vec![protocol_name.into_bytes().into()]);
+            kademlia_config.set_protocol_names(vec![StreamProtocol::try_from_owned(protocol_name)
+                .expect("configuration to contain valid stream protocol name")]);
         }
 
         if disjoint_query_paths {
@@ -245,31 +244,12 @@ impl MyBehaviour {
 fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<BandwidthSinks>) {
     let tcp = tcp::async_io::Transport::new(tcp::Config::default().nodelay(true));
 
-    let authentication_config = {
-        let noise_keypair_spec = noise::Keypair::<noise::X25519Spec>::new().into_authentic(&keypair)
-            .expect("can only fail in case of a hardware bug; since this signing is performed only \
-                     once and at initialization, we're taking the bet that the inconvenience of a very \
-                     rare panic here is basically zero");
+    let authentication_config = { noise::Config::new(&keypair).unwrap() };
 
-        let xx_config = noise::NoiseConfig::xx(noise_keypair_spec);
-
-        xx_config.into_authenticated()
-    };
-
-    let multiplexing_config = {
-        let mut mplex_config = mplex::MplexConfig::new();
-        mplex_config.set_max_buffer_behaviour(mplex::MaxBufferBehaviour::Block);
-        mplex_config.set_max_buffer_size(usize::MAX);
-
-        let mut yamux_config = yamux::YamuxConfig::default();
-        // Enable proper flow-control: window updates are only sent when
-        // buffered data has been consumed.
-        yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
-
-        core::upgrade::SelectUpgrade::new(yamux_config, mplex_config)
-            .map_inbound(core::muxing::StreamMuxerBox::new)
-            .map_outbound(core::muxing::StreamMuxerBox::new)
-    };
+    let mut yamux_config = yamux::Config::default();
+    // Enable proper flow-control: window updates are only sent when
+    // buffered data has been consumed.
+    yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
 
     let quic_transport = {
         let mut config = libp2p::quic::Config::new(&keypair);
@@ -281,13 +261,15 @@ fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<Ba
     // addresses in most Dhts dialing private IP addresses can easily be (and
     // has been) interpreted as a port-scan by ones hosting provider.
     let (transport, bandwidth_sinks) = block_on(dns::DnsConfig::system(
-        global_only::GlobalIpOnly::new(libp2p::core::transport::OrTransport::new(
-            quic_transport,
-            tcp.upgrade(upgrade::Version::V1Lazy)
-                .authenticate(authentication_config)
-                .multiplex(multiplexing_config)
-                .timeout(Duration::from_secs(20)),
-        )),
+        libp2p::core::transport::global_only::Transport::new(
+            libp2p::core::transport::OrTransport::new(
+                quic_transport,
+                tcp.upgrade(upgrade::Version::V1Lazy)
+                    .authenticate(authentication_config)
+                    .multiplex(yamux_config)
+                    .timeout(Duration::from_secs(20)),
+            ),
+        ),
     ))
     .unwrap()
     .map(|either_output, _| match either_output {

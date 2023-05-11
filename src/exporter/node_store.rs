@@ -47,9 +47,8 @@ impl NodeStore {
 
         // Remove old offline nodes.
         let length = self.nodes.len();
-        self.nodes.drain_filter(|_, n| {
-            (Instant::now() - n.last_seen) > Duration::from_secs(60 * 60 * 12)
-        });
+        self.nodes
+            .retain(|_, n| (Instant::now() - n.last_seen) <= Duration::from_secs(60 * 60 * 12));
         self.metrics
             .meta_offline_nodes_removed
             .inc_by((length - self.nodes.len()).try_into().unwrap());
