@@ -1,9 +1,9 @@
 use libp2p::PeerId;
+use prometheus_client::metrics::family::ConstFamily;
 use prometheus_client::metrics::gauge::{ConstGauge, Gauge};
 use prometheus_client::MaybeOwned;
 use prometheus_client::{metrics::counter::Counter, registry::Descriptor};
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::convert::TryInto;
 use std::sync::atomic::AtomicI64;
@@ -99,7 +99,7 @@ impl prometheus_client::collector::Collector for NodeStore {
                     std::borrow::Cow<'a, prometheus_client::registry::Descriptor>,
                     prometheus_client::MaybeOwned<
                         'a,
-                        Box<dyn prometheus_client::collector::Metric>,
+                        Box<dyn prometheus_client::registry::LocalMetric>,
                     >,
                 ),
             > + 'a,
@@ -109,7 +109,7 @@ impl prometheus_client::collector::Collector for NodeStore {
 
         // Remove old offline nodes.
         let length = nodes.len();
-        nodes.drain_filter(|_, n| (now - n.last_seen) > Duration::from_secs(60 * 60 * 48));
+        nodes.retain(|_, n| (Instant::now() - n.last_seen) <= Duration::from_secs(60 * 60 * 12));
         self.offline_nodes_removed
             .inc_by((length - nodes.len()).try_into().unwrap());
 
@@ -164,8 +164,8 @@ impl prometheus_client::collector::Collector for NodeStore {
             })
             .flatten();
 
-        let nodes_seen_within: Box<dyn prometheus_client::collector::Metric> =
-            Box::new(RefCell::new(nodes_seen_within));
+        let nodes_seen_within: Box<dyn prometheus_client::registry::LocalMetric> =
+            Box::new(ConstFamily::new(nodes_seen_within));
 
         //
         // Up since
@@ -229,8 +229,8 @@ impl prometheus_client::collector::Collector for NodeStore {
             })
             .flatten();
 
-        let nodes_up_since: Box<dyn prometheus_client::collector::Metric> =
-            Box::new(RefCell::new(up_since));
+        let nodes_up_since: Box<dyn prometheus_client::registry::LocalMetric> =
+            Box::new(ConstFamily::new(up_since));
 
         let iter: Box<
             dyn Iterator<
@@ -238,7 +238,7 @@ impl prometheus_client::collector::Collector for NodeStore {
                         std::borrow::Cow<'a, prometheus_client::registry::Descriptor>,
                         prometheus_client::MaybeOwned<
                             'a,
-                            Box<dyn prometheus_client::collector::Metric>,
+                            Box<dyn prometheus_client::registry::LocalMetric>,
                         >,
                     ),
                 > + 'a,

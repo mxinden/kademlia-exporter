@@ -9,4 +9,6 @@ bootnodes = [
         "/ip4/104.131.131.82/udp/4001/quic/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
 ]
 disjoint_query_paths = false
-noise_legacy = false
+tcp_listen_address = "0.0.0.0:8048"
+quic_listen_address = "0.0.0.0:8048"
+quic_v1_listen_address = "0.0.0.0:8049"

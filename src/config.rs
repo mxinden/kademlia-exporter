@@ -12,7 +12,6 @@ pub struct Config {
     pub bootnodes: Vec<Multiaddr>,
     pub disjoint_query_paths: bool,
     pub protocol_name: Option<String>,
-    pub noise_legacy: bool,
     pub tcp_listen_address: Option<SocketAddr>,
     pub quic_listen_address: Option<SocketAddr>,
     pub quic_v1_listen_address: Option<SocketAddr>,

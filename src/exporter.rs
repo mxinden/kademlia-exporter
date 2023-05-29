@@ -15,19 +15,19 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::gauge::Gauge;
 use prometheus_client::registry::Registry;
 use std::{
-    collections::HashMap,
     convert::TryInto,
     error::Error,
     net::IpAddr,
     pin::Pin,
     task::{Context, Poll},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 mod client;
 mod node_store;
 
 const TICK_INTERVAL: Duration = Duration::from_secs(1);
+const RANDOM_LOOKUP_INTERVAL: Duration = Duration::from_secs(10);
 
 pub(crate) struct Exporter {
     // TODO: Introduce dht id new type.
@@ -35,12 +35,8 @@ pub(crate) struct Exporter {
     node_store: NodeStore,
     ip_db: Option<Reader<Vec<u8>>>,
     cloud_provider_db: Option<cloud_provider_db::Db>,
-    /// Set of in-flight random peer id lookups.
-    ///
-    /// When a lookup returns the entry is dropped and thus the duratation is
-    /// observed through `<HistogramTimer as Drop>::drop`.
-    in_flight_lookups: HashMap<PeerId, Instant>,
     tick: Delay,
+    random_lookup_delay: Delay,
     metrics: Metrics,
     /// An exporter periodically reconnects to each discovered node to probe
     /// whether it is still online.
@@ -71,8 +67,7 @@ impl Exporter {
             node_store,
 
             tick: futures_timer::Delay::new(TICK_INTERVAL),
-
-            in_flight_lookups: HashMap::new(),
+            random_lookup_delay: futures_timer::Delay::new(RANDOM_LOOKUP_INTERVAL),
             nodes_to_probe_periodically: vec![],
         })
     }
@@ -82,10 +77,11 @@ impl Exporter {
             client::ClientEvent::Behaviour(client::MyBehaviourEvent::Ping(ping::Event {
                 peer,
                 result,
+                connection: _,
             })) => {
                 // Update node store.
                 match result {
-                    Ok(_) => self.node_store.observed_node(Node::new(peer.clone())),
+                    Ok(_) => self.node_store.observed_node(Node::new(peer)),
                     Err(_) => self.node_store.observed_down(&peer),
                 }
             }
@@ -94,7 +90,7 @@ impl Exporter {
                     identify::Event::Error { .. } => {}
                     identify::Event::Sent { .. } => {}
                     identify::Event::Received { peer_id, info } => {
-                        self.observe_with_address(peer_id, info.listen_addrs.clone());
+                        self.observe_with_address(peer_id, info.listen_addrs);
                         self.node_store.observed_node(Node::new(peer_id));
                     }
                     identify::Event::Pushed { .. } => {
@@ -231,12 +227,6 @@ impl Future for Exporter {
                 }
             }
 
-            // Trigger a random lookup.
-            this.metrics.meta_random_node_lookup_triggered.inc();
-            let random_peer = PeerId::random();
-            this.client.get_closest_peers(random_peer.clone());
-            this.in_flight_lookups.insert(random_peer, Instant::now());
-
             let info = this.client.network_info();
             this.metrics
                 .meta_libp2p_network_info_num_peers
@@ -256,6 +246,15 @@ impl Future for Exporter {
             this.metrics
                 .meta_libp2p_bandwidth_outbound
                 .set(this.client.total_outbound() as i64);
+        }
+
+        if let Poll::Ready(()) = this.random_lookup_delay.poll_unpin(ctx) {
+            this.random_lookup_delay = Delay::new(RANDOM_LOOKUP_INTERVAL);
+
+            // Trigger a random lookup.
+            this.metrics.meta_random_node_lookup_triggered.inc();
+            let random_peer = PeerId::random();
+            this.client.get_closest_peers(random_peer);
         }
 
         loop {
