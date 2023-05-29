@@ -1681,7 +1681,7 @@ dependencies = [
  "log",
  "maxminddb",
  "parking_lot",
- "prometheus-client",
+ "prometheus-client 0.21.1",
  "regex",
  "serde",
  "serde_derive",
@@ -1910,7 +1910,7 @@ dependencies = [
  "libp2p-kad",
  "libp2p-ping",
  "libp2p-swarm",
- "prometheus-client",
+ "prometheus-client 0.20.0",
 ]
 
 [[package]]
@@ -2627,6 +2627,18 @@ name = "prometheus-client"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e227aeb6c2cfec819e999c4773b35f8c7fa37298a203ff46420095458eee567e"
+dependencies = [
+ "dtoa",
+ "itoa",
+ "parking_lot",
+ "prometheus-client-derive-encode",
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78c2f43e8969d51935d2a7284878ae053ba30034cd563f673cde37ba5205685e"
 dependencies = [
  "dtoa",
  "itoa",
