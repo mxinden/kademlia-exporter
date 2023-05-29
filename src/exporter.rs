@@ -4,7 +4,7 @@ use futures::prelude::*;
 use futures_timer::Delay;
 use libp2p::{
     identify,
-    kad::{KademliaEvent},
+    kad::KademliaEvent,
     multiaddr::{Multiaddr, Protocol},
     ping, PeerId,
 };
@@ -20,7 +20,7 @@ use std::{
     net::IpAddr,
     pin::Pin,
     task::{Context, Poll},
-    time::{Duration},
+    time::Duration,
 };
 
 mod client;
@@ -56,8 +56,8 @@ impl Exporter {
 
         let metrics = Metrics::register(sub_registry);
 
-        let node_store_metrics = node_store::Metrics::register(sub_registry);
-        let node_store = NodeStore::new(node_store_metrics);
+        let node_store = NodeStore::default();
+        sub_registry.register_collector(Box::new(node_store.clone()));
 
         Ok(Exporter {
             client,
@@ -77,6 +77,7 @@ impl Exporter {
             client::ClientEvent::Behaviour(client::MyBehaviourEvent::Ping(ping::Event {
                 peer,
                 result,
+                connection: _,
             })) => {
                 // Update node store.
                 match result {
@@ -204,8 +205,6 @@ impl Future for Exporter {
         if let Poll::Ready(()) = this.tick.poll_unpin(ctx) {
             this.tick = Delay::new(TICK_INTERVAL);
 
-            this.node_store.tick();
-
             match this.nodes_to_probe_periodically.pop() {
                 Some(peer_id) => {
                     info!("Checking if {:?} is still online.", &peer_id);
@@ -224,7 +223,7 @@ impl Future for Exporter {
                 // list.
                 None => {
                     this.nodes_to_probe_periodically
-                        .append(&mut this.node_store.iter().map(|n| n.peer_id).collect());
+                        .append(&mut this.node_store.peers());
                 }
             }
 
