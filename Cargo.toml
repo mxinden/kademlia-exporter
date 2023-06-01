@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 async-std = "1.12.0"
 cidr = "0.2.1"
-csv = "1.2.1"
+csv = "1.2.2"
 env_logger = "0.10.0"
 futures = "0.3.28"
 libp2p = { git = "https://github.com/libp2p/rust-libp2p.git", branch = "master", version = "0.52", default-features = false, features = ["dns", "async-std", "noise", "tcp", "yamux", "identify", "kad", "ping", "metrics", "quic", "rsa", "macros"] }
