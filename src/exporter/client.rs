@@ -256,9 +256,9 @@ fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<Ba
     yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
 
     let quic_transport = {
-        let mut config = libp2p::quic::Config::new(&keypair);
+        let mut config = libp2p_quic::Config::new(&keypair);
         config.support_draft_29 = true;
-        libp2p::quic::async_std::Transport::new(config)
+        libp2p_quic::async_std::Transport::new(config)
     };
 
     // Ignore any non global IP addresses. Given the amount of private IP
