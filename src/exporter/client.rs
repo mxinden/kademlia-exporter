@@ -90,8 +90,8 @@ impl Client {
         swarm.listen_on(quic_addr_v1)?;
 
         for mut bootnode in config.bootnodes {
-            let bootnode_peer_id = if let Protocol::P2p(hash) = bootnode.pop().unwrap() {
-                PeerId::from_multihash(hash).unwrap()
+            let bootnode_peer_id = if let Protocol::P2p(id) = bootnode.pop().unwrap() {
+                id
             } else {
                 panic!("expected peer id");
             };
