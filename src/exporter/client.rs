@@ -103,6 +103,10 @@ impl Client {
 
         swarm.behaviour_mut().kademlia.bootstrap().unwrap();
 
+        for address in config.external_addresses {
+            swarm.add_external_address(address);
+        }
+
         Ok(Client {
             swarm,
             bandwidth_sinks,
@@ -158,10 +162,6 @@ impl Stream for Client {
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
                     println!("Swarm listening on {address:?}");
-
-                    // Hack to run in Kademlia server mode. Ideally we would
-                    // verify the listen addresses via libp2p-autonat.
-                    self.swarm.add_external_address(address);
                 }
                 SwarmEvent::ConnectionClosed {
                     peer_id,
