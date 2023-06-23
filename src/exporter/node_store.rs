@@ -109,7 +109,7 @@ impl prometheus_client::collector::Collector for NodeStore {
 
         // Remove old offline nodes.
         let length = nodes.len();
-        nodes.retain(|_, n| (Instant::now() - n.last_seen) <= Duration::from_secs(60 * 60 * 12));
+        nodes.retain(|_, n| (Instant::now() - n.last_seen) <= Duration::from_secs(60 * 60 * 96));
         self.offline_nodes_removed
             .inc_by((length - nodes.len()).try_into().unwrap());
 
