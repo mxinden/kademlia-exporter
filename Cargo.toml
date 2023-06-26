@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 async-std = "1.12.0"
-cidr = "0.2.1"
+cidr = "0.2.2"
 csv = "1.2.2"
 env_logger = "0.10.0"
 futures = "0.3.28"
