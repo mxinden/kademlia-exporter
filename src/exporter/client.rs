@@ -15,7 +15,7 @@ use libp2p::{
     identity::Keypair,
     kad::{record::store::MemoryStore, Kademlia, KademliaConfig},
     metrics::{Metrics, Recorder},
-    noise, ping, swarm,
+    noise, ping, 
     swarm::NetworkBehaviour,
     swarm::{DialError, NetworkInfo, SwarmBuilder, SwarmEvent},
     tcp, yamux, PeerId, Swarm,
@@ -56,10 +56,13 @@ impl Client {
                 Box::new(|fut| {
                     async_std::task::spawn(fut);
                 }),
-            );
+            )
+            .idle_connection_timeout(Duration::MAX);
+
             if let Some(dial_concurrency_factor) = config.dial_concurrency_factor {
                 builder = builder.dial_concurrency_factor(dial_concurrency_factor);
             }
+
             builder.build()
         };
 
@@ -156,7 +159,6 @@ impl Stream for Client {
                         MyBehaviourEvent::Ping(e) => self.metrics.record(e),
                         MyBehaviourEvent::Identify(e) => self.metrics.record(e),
                         MyBehaviourEvent::Kademlia(e) => self.metrics.record(e),
-                        MyBehaviourEvent::KeepAlive(v) => void::unreachable(*v),
                     }
                     return Poll::Ready(Some(ClientEvent::Behaviour(event)));
                 }
@@ -187,7 +189,6 @@ pub struct MyBehaviour {
     pub(crate) kademlia: Kademlia<MemoryStore>,
     pub(crate) ping: ping::Behaviour,
     pub(crate) identify: identify::Behaviour,
-    keep_alive: swarm::keep_alive::Behaviour,
 }
 
 impl MyBehaviour {
@@ -240,7 +241,6 @@ impl MyBehaviour {
             kademlia,
             ping,
             identify,
-            keep_alive: swarm::keep_alive::Behaviour,
         })
     }
 }
@@ -256,15 +256,15 @@ fn build_transport(keypair: Keypair) -> (Boxed<(PeerId, StreamMuxerBox)>, Arc<Ba
     yamux_config.set_window_update_mode(yamux::WindowUpdateMode::on_read());
 
     let quic_transport = {
-        let mut config = libp2p_quic::Config::new(&keypair);
+        let mut config = libp2p::quic::Config::new(&keypair);
         config.support_draft_29 = true;
-        libp2p_quic::async_std::Transport::new(config)
+        libp2p::quic::async_std::Transport::new(config)
     };
 
     // Ignore any non global IP addresses. Given the amount of private IP
     // addresses in most Dhts dialing private IP addresses can easily be (and
     // has been) interpreted as a port-scan by ones hosting provider.
-    let (transport, bandwidth_sinks) = block_on(dns::DnsConfig::system(
+    let (transport, bandwidth_sinks) = block_on(dns::async_std::Transport::system(
         libp2p::core::transport::global_only::Transport::new(
             libp2p::core::transport::OrTransport::new(
                 quic_transport,

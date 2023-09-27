@@ -114,9 +114,6 @@ impl Exporter {
                     _ => {}
                 }
             }
-            client::ClientEvent::Behaviour(client::MyBehaviourEvent::KeepAlive(v)) => {
-                void::unreachable(v)
-            }
             client::ClientEvent::AllConnectionsClosed(peer_id) => {
                 self.node_store.observed_down(&peer_id);
             }
